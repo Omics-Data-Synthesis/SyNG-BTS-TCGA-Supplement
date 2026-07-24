@@ -1,0 +1,27 @@
+# Data. Large files are distributed as GitHub release assets, never committed.
+data/raw/
+data/processed/
+data/generated/
+*.h5
+*.hdf5
+
+# Model checkpoints and training logs
+*.pt
+*.pth
+logs/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+renv/library/
+renv/staging/
+
+# OS
+.DS_Store
