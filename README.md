@@ -79,7 +79,7 @@ Rscript -e 'renv::install("bioc::DESeq2")'         # Bioconductor package
 
 Everything that defines the published analysis should live in `config/`, ideally not hard-coded in script bodies. A parameter buried in a script is invisible to a reader checking what was actually run.
 
-The directory is empty for now. Add each file together with the stage that reads it. Some examples:
+Add each file together with the stage that reads it. Currently present: `tcga_cohorts.tsv` and `tcga_download.yml` (stage 01). Further examples:
 
 | File | Holds |
 |---|---|

@@ -1,0 +1,30 @@
+# GDC download specification for workflow/01_download_tcga/run.R.
+#
+# One entry per modality: the GDC /files query filters that select the raw
+# per-sample quantification files, plus the TSV columns to extract from them.
+# Cohort lists live in tcga_cohorts.tsv; this file holds everything else.
+
+gdc_api: https://api.gdc.cancer.gov
+
+# Files are fetched from the /data endpoint in batches of this many file IDs.
+batch_size: 100
+
+output_dir: data/raw
+
+modalities:
+  rnaseq:
+    data_category: Transcriptome Profiling
+    data_type: Gene Expression Quantification
+    workflow_type: STAR - Counts
+    # STAR-Counts TSVs start with '#' comment lines; fread skips to the first
+    # line containing id_column.
+    id_column: gene_id
+    count_column: unstranded
+    # Drop the four N_* alignment-summary rows, keep genes only.
+    keep_pattern: ^ENSG
+  mirna:
+    data_category: Transcriptome Profiling
+    data_type: miRNA Expression Quantification
+    workflow_type: BCGSC miRNA Profiling
+    id_column: miRNA_ID
+    count_column: read_count

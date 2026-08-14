@@ -25,3 +25,6 @@ renv/staging/
 
 # OS
 .DS_Store
+
+# Helper files
+helper_source/
