@@ -1,0 +1,8 @@
+param	value
+raw_dir	data/raw
+grouped_dir	data/processed/grouped
+filtered_dir	data/processed/filtered
+plot_dir	data/processed/plots
+n_bins	80
+max_peak_frac	0.70
+max_search_frac	0.20

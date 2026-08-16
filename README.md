@@ -21,7 +21,7 @@ uv sync                       # Python
 Rscript -e 'renv::restore()'  # R
 ```
 
-So far the lockfiles are only starting points, not the finished environments. Python currently holds `syng-bts` plus `h5py`, `pandas`, `numpy`, and `matplotlib`. R holds `DANA`, its four imports, and its suggested Bioconductor packages: `edgeR`, `DESeq2`, `limma`, `sva`, `RUVSeq`, `EDASeq`, `Biobase`, and `ggnewscale`. Please add dependencies and packages for each stage as needed, and re-lock both environments, as described below.
+So far the lockfiles are only starting points, not the finished environments. Python currently holds `syng-bts` plus `h5py`, `pandas`, `numpy`, `matplotlib`, and `scipy`. R holds `DANA`, its four imports, and its suggested Bioconductor packages: `edgeR`, `DESeq2`, `limma`, `sva`, `RUVSeq`, `EDASeq`, `Biobase`, and `ggnewscale`. Please add dependencies and packages for each stage as needed, and re-lock both environments, as described below.
 
 
 ### Python with uv
@@ -83,9 +83,9 @@ Add each file together with the stage that reads it. Currently present: `tcga_co
 
 | File | Holds |
 |---|---|
-| download config | TCGA query, source version, and the cohort list. |
-| group labels | Per cohort: the clinical variable, how it is selected, exclusions, and the resulting binary label. |
-| filtering cutoffs | Per-cohort marker filtering thresholds. Table B1 reports data-driven joint thresholds on marker mean and SD, so these are per-cohort values rather than one global rule. |
+| `tcga_cohorts.tsv`, `tcga_download.yml` | TCGA query, source version, and the cohort list. Read by stage 01. |
+| `datasets.tsv`, `group_maps.tsv` | Per dataset: the clinical variable, Biotab column, recode rule, and published sample/marker counts. Read by stages 02 and 03. |
+| `preprocess.tsv` | Marker-filtering paths and the auto-threshold binning parameters. Read by stage 03. |
 | generation | Models, hyperparameters, generated sample counts, etc. |
 
 Formats: Ideally use **TSV** when there is one row per cohort, something like **YAML** for nested or optional parameters.
@@ -121,7 +121,7 @@ One row per published output. Example structure:
 | HNSC learning curves | `07_figures/run.py` | `results/curves_hnsc.csv` |
 | cARI across 5 RNA-seq cohorts | `07_figures/run.py` | `results/cari_rna.csv` |
 | RNA-seq UMAP and MAD panels | `07_figures/run.py` | `results/fidelity_rna.csv`, `results/umap_rna.csv` |
-| Table B1, marker filtering | `02_preprocess/run.R` | `results/marker_filtering.csv` |
+| Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
 
 

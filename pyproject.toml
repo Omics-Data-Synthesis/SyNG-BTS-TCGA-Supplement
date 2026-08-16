@@ -17,6 +17,7 @@ dependencies = [
     # 0.36.0, which cannot build on any supported Python.
     "numpy>=1.23,<2.5",
     "matplotlib>=3.6",
+    "scipy>=1.10",
 ]
 
 [tool.uv]

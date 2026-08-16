@@ -5,13 +5,15 @@ Stages should be run in order by hand. There is no workflow engine. Ideally, eac
 
 ## Stages
 
-An suggested example workflow structure could be:
+Stages should be run in this order. **Define groups before preprocess:** marker
+thresholds (mean / SD on `log2(x+1)`) are computed after samples with missing
+group labels have been dropped, so the sample set has to be fixed first.
 
 | # | Stage | Command | Reads | Writes |
 |---|---|---|---|---|
-| 01 | Download TCGA | `Rscript workflow/01_download_tcga/run.R` | cohort list from `config/` | `data/raw/` |
-| 02 | Preprocess | `Rscript workflow/02_preprocess/run.R` | `data/raw/`, preprocessing and filtering config | `data/processed/`, `results/marker_filtering.csv` |
-| 03 | Define groups | `Rscript workflow/03_define_groups/run.R` | `data/processed/`, group-label config | `data/processed/`, `results/group_selection.csv` |
+| 01 | Download TCGA | `Rscript workflow/01_download_tcga/run.R` | cohort list from `config/` | `data/raw/` (expression + clinical) |
+| 02 | Define groups | `uv run workflow/02_define_groups/run.py` | `data/raw/`, `config/datasets.tsv`, `config/group_maps.tsv` | `data/processed/grouped/`, `results/group_selection.csv` |
+| 03 | Preprocess | `uv run workflow/03_preprocess/run.py` | `data/raw/`, `data/processed/grouped/`, `config/datasets.tsv`, `config/preprocess.tsv` | `data/processed/filtered/`, `results/marker_filtering.csv` |
 | 04 | Generate | `uv run workflow/04_generate/run.py` | `data/processed/`, generation config | `data/generated/` |
 | 05 | Fidelity | `uv run workflow/05_fidelity/run.py` | `data/processed/`, `data/generated/` | `results/fidelity_*.csv`, `results/umap_*.csv` |
 | 06 | SyntheSize | `uv run workflow/06_synthesize/run.py` | `data/processed/`, `data/generated/` | `results/curves_*.csv` |

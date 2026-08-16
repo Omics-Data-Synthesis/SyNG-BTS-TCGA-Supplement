@@ -1,0 +1,86 @@
+map_name	value	group
+ajcc_pathologic_tumor_stage	Stage 0	0
+ajcc_pathologic_tumor_stage	Stage I	0
+ajcc_pathologic_tumor_stage	Stage IA	0
+ajcc_pathologic_tumor_stage	Stage IB	0
+ajcc_pathologic_tumor_stage	Stage II	0
+ajcc_pathologic_tumor_stage	Stage IIA	0
+ajcc_pathologic_tumor_stage	Stage IIB	0
+ajcc_pathologic_tumor_stage	Stage IIC	0
+ajcc_pathologic_tumor_stage	I/II NOS	0
+ajcc_pathologic_tumor_stage	Stage III	1
+ajcc_pathologic_tumor_stage	Stage IIIA	1
+ajcc_pathologic_tumor_stage	Stage IIIB	1
+ajcc_pathologic_tumor_stage	Stage IIIC	1
+ajcc_pathologic_tumor_stage	Stage IV	1
+ajcc_pathologic_tumor_stage	Stage IVA	1
+ajcc_pathologic_tumor_stage	Stage IVB	1
+ajcc_pathologic_tumor_stage	Stage IVC	1
+ajcc_tumor_pathologic_pt	T0	0
+ajcc_tumor_pathologic_pt	T1	0
+ajcc_tumor_pathologic_pt	T1a	0
+ajcc_tumor_pathologic_pt	T1b	0
+ajcc_tumor_pathologic_pt	T2	0
+ajcc_tumor_pathologic_pt	T2a	0
+ajcc_tumor_pathologic_pt	T2b	0
+ajcc_tumor_pathologic_pt	T3	1
+ajcc_tumor_pathologic_pt	T3a	1
+ajcc_tumor_pathologic_pt	T3b	1
+ajcc_tumor_pathologic_pt	T4	1
+ajcc_tumor_pathologic_pt	T4a	1
+ajcc_tumor_pathologic_pt	T4b	1
+ajcc_tumor_pathologic_pt	TX	1
+ajcc_tumor_pathologic_pt	Tis	1
+ajcc_nodes_pathologic_pn	N0	0
+ajcc_nodes_pathologic_pn	N1	1
+ajcc_nodes_pathologic_pn	N1a	1
+ajcc_nodes_pathologic_pn	N1b	1
+ajcc_nodes_pathologic_pn	N1c	1
+ajcc_nodes_pathologic_pn	N2	1
+ajcc_nodes_pathologic_pn	N2a	1
+ajcc_nodes_pathologic_pn	N2b	1
+ajcc_nodes_pathologic_pn	N2c	1
+ajcc_nodes_pathologic_pn	N3	1
+ajcc_nodes_pathologic_pn	N3a	1
+ajcc_nodes_pathologic_pn	N3b	1
+ajcc_nodes_pathologic_pn	NX	1
+esca_icd_o_3_histology	8070/3	0
+esca_icd_o_3_histology	8071/3	0
+esca_icd_o_3_histology	8083/3	0
+esca_icd_o_3_histology	8140/3	1
+esca_icd_o_3_histology	8480/3	1
+esca_icd_o_3_histology	8211/3	1
+paad_anatomic_neoplasm_subdivision	Head of Pancreas	0
+paad_anatomic_neoplasm_subdivision	Body of Pancreas	1
+paad_anatomic_neoplasm_subdivision	Tail of Pancreas	1
+paad_anatomic_neoplasm_subdivision	Other (please specify)	1
+hnsc_anatomic_organ_subdivision	Oral Tongue	0
+hnsc_anatomic_organ_subdivision	Oral Cavity	0
+hnsc_anatomic_organ_subdivision	Floor of mouth	0
+hnsc_anatomic_organ_subdivision	Buccal Mucosa	0
+hnsc_anatomic_organ_subdivision	Alveolar Ridge	0
+hnsc_anatomic_organ_subdivision	Hard Palate	0
+hnsc_anatomic_organ_subdivision	Lip	0
+hnsc_anatomic_organ_subdivision	Larynx	1
+hnsc_anatomic_organ_subdivision	Tonsil	1
+hnsc_anatomic_organ_subdivision	Base of tongue	1
+hnsc_anatomic_organ_subdivision	Hypopharynx	1
+hnsc_anatomic_organ_subdivision	Oropharynx	1
+ov_residual_disease	No Macroscopic disease	0
+ov_residual_disease	1-10 mm	1
+ov_residual_disease	11-20 mm	1
+ov_residual_disease	>20 mm	1
+pcpg_histologic_diagnosis	Pheochromocytoma	0
+pcpg_histologic_diagnosis	Paraganglioma	1
+pcpg_histologic_diagnosis	Paraganglioma; Extra-adrenal Pheochromocytoma	1
+sarc_histologic_diagnosis	Leiomyosarcoma (LMS)	0
+sarc_histologic_diagnosis	Dedifferentiated liposarcoma	1
+sarc_histologic_diagnosis	Pleomorphic 'MFH' / Undifferentiated pleomorphic sarcoma	1
+sarc_histologic_diagnosis	Myxofibrosarcoma	1
+sarc_histologic_diagnosis	Undifferentiated Pleomorphic Sarcoma (UPS)	1
+sarc_histologic_diagnosis	Malignant Peripheral Nerve Sheath Tumors (MPNST)	1
+sarc_histologic_diagnosis	Synovial Sarcoma - Monophasic	1
+sarc_histologic_diagnosis	Synovial Sarcoma - Biphasic	1
+sarc_histologic_diagnosis	Sarcoma; synovial; poorly differentiated	1
+sarc_histologic_diagnosis	Desmoid Tumor	1
+sarc_histologic_diagnosis	Giant cell 'MFH' / Undifferentiated pleomorphic sarcoma with giant cells	1
