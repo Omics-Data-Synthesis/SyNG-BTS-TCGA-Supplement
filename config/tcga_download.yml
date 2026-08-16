@@ -1,7 +1,8 @@
 # GDC download specification for workflow/01_download_tcga/run.R.
 #
-# One entry per modality: the GDC /files query filters that select the raw
-# per-sample quantification files, plus the TSV columns to extract from them.
+# Expression: one entry per modality. The GDC /files query filters that select
+# the raw per-sample quantification files, plus the TSV columns to extract.
+# Clinical: one BCR Biotab patient table per unique cohort in tcga_cohorts.tsv.
 # Cohort lists live in tcga_cohorts.tsv; this file holds everything else.
 
 gdc_api: https://api.gdc.cancer.gov
@@ -28,3 +29,14 @@ modalities:
     workflow_type: BCGSC miRNA Profiling
     id_column: miRNA_ID
     count_column: read_count
+
+# One nationwidechildrens.org_clinical_patient_<cohort>.txt per TCGA project.
+# The Biotab has two metadata rows under the header (CDE aliases, CDE IDs);
+# those are dropped so the CSV matches the historical {cancer}Patient.csv.
+clinical:
+  data_category: Clinical
+  data_type: Clinical Supplement
+  data_format: BCR Biotab
+  file_name_pattern: clinical_patient_%s.txt
+  skip_header_rows: 2
+  output_subdir: clinical

@@ -1,13 +1,18 @@
-# Stage 01: download TCGA expression cohorts from the GDC API.
+# Stage 01: download TCGA expression cohorts and clinical tables from the GDC API.
 #
 # For every cohort in config/tcga_cohorts.tsv, queries GDC for the raw
 # per-sample quantification files (query spec in config/tcga_download.yml),
 # downloads them via the /data endpoint, and merges them into one
 # feature-by-sample raw-count matrix per cohort, written to
 # data/raw/<modality>/TCGA-<COHORT>.csv. Also writes a per-cohort sample
-# manifest (TCGA-<COHORT>.samples.csv) and a run-level download log
-# (data/raw/download_log.csv). Cohorts whose output CSV already exists are
-# skipped, so an interrupted run can be restarted safely.
+# manifest (TCGA-<COHORT>.samples.csv).
+#
+# Independently, one BCR Biotab clinical-patient table is downloaded per
+# unique cohort into data/raw/clinical/TCGA-<COHORT>.patient.csv (the two
+# CDE metadata rows under the header are dropped).
+#
+# A run-level download log is written to data/raw/download_log.csv. Outputs
+# that already exist are skipped, so an interrupted run can be restarted.
 #
 # Downloads are deterministic, so this stage declares no seed.
 #
@@ -60,15 +65,20 @@ gdc_filters <- function(cohort, spec) {
   in_filter <- function(field, value) {
     list(op = "in", content = list(field = field, value = I(value)))
   }
-  list(
-    op = "and",
-    content = list(
-      in_filter("cases.project.project_id", paste0("TCGA-", cohort)),
-      in_filter("data_category", spec$data_category),
-      in_filter("data_type", spec$data_type),
-      in_filter("analysis.workflow_type", spec$workflow_type)
-    )
-  )
+  content <- list(in_filter("cases.project.project_id", paste0("TCGA-", cohort)))
+  if (!is.null(spec$data_category)) {
+    content <- c(content, list(in_filter("data_category", spec$data_category)))
+  }
+  if (!is.null(spec$data_type)) {
+    content <- c(content, list(in_filter("data_type", spec$data_type)))
+  }
+  if (!is.null(spec$workflow_type)) {
+    content <- c(content, list(in_filter("analysis.workflow_type", spec$workflow_type)))
+  }
+  if (!is.null(spec$data_format)) {
+    content <- c(content, list(in_filter("data_format", spec$data_format)))
+  }
+  list(op = "and", content = content)
 }
 
 # One row per quantification file: file_id, file_name, aliquot barcode.
@@ -227,6 +237,78 @@ download_cohort <- function(cfg, cohort, modality) {
              error = NA_character_)
 }
 
+# One BCR Biotab clinical-patient table per project.
+query_clinical_patient <- function(cfg, cohort) {
+  spec <- cfg$clinical
+  if (is.null(spec)) stop("config is missing the clinical: block")
+  pattern <- sprintf(spec$file_name_pattern, tolower(cohort))
+  resp <- request(file.path(cfg$gdc_api, "files")) |>
+    req_url_query(
+      filters = as.character(toJSON(gdc_filters(cohort, spec), auto_unbox = TRUE)),
+      fields = "file_id,file_name",
+      size = 50,
+      format = "JSON"
+    ) |>
+    gdc_retry() |>
+    req_timeout(600) |>
+    req_perform()
+  hits <- resp_body_json(resp)$data$hits
+  names <- vapply(hits, function(h) h$file_name, character(1))
+  keep <- grepl(pattern, names, fixed = TRUE)
+  if (sum(keep) != 1L) {
+    stop("TCGA-", cohort, ": expected 1 file matching '", pattern,
+         "', found ", sum(keep),
+         if (length(names)) paste0(" among: ", paste(names, collapse = ", ")))
+  }
+  hit <- hits[[which(keep)]]
+  data.frame(file_id = hit$file_id, file_name = hit$file_name)
+}
+
+download_clinical <- function(cfg, cohort) {
+  spec <- cfg$clinical
+  out_dir <- file.path(cfg$output_dir, spec$output_subdir %||% "clinical")
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  out_csv <- file.path(out_dir, sprintf("TCGA-%s.patient.csv", cohort))
+
+  if (file.exists(out_csv)) {
+    message(sprintf("[%s/clinical] %s exists, skipping", cohort, out_csv))
+    n_col <- ncol(fread(out_csv, nrows = 0L))
+    n_row <- nrow(fread(out_csv, select = 1L, showProgress = FALSE))
+    return(data.table(cohort = cohort, modality = "clinical", files = NA_integer_,
+                      features = n_col, samples = n_row, skipped = TRUE,
+                      error = NA_character_))
+  }
+
+  message(sprintf("[%s/clinical] querying GDC", cohort))
+  files <- query_clinical_patient(cfg, cohort)
+
+  tmp <- tempfile(pattern = "gdc_clin_")
+  dir.create(tmp)
+  on.exit(unlink(tmp, recursive = TRUE), add = TRUE)
+  download_batch(cfg, files, tmp)
+
+  path <- file.path(tmp, files$file_id, files$file_name)
+  dt <- fread(path, colClasses = "character")
+  n_skip <- spec$skip_header_rows %||% 2L
+  if (nrow(dt) <= n_skip) {
+    stop("TCGA-", cohort, ": Biotab has no patient rows after dropping ",
+         n_skip, " header rows")
+  }
+  dt <- dt[-seq_len(n_skip)]
+
+  message(sprintf("[%s/clinical] writing %s (%d patients x %d fields)",
+                  cohort, out_csv, nrow(dt), ncol(dt)))
+  tmp_csv <- paste0(out_csv, ".tmp")
+  fwrite(dt, tmp_csv)
+  file.rename(tmp_csv, out_csv)
+  fwrite(data.table(file_id = files$file_id, file_name = files$file_name),
+         file.path(out_dir, sprintf("TCGA-%s.patient.source.csv", cohort)))
+
+  data.table(cohort = cohort, modality = "clinical", files = 1L,
+             features = ncol(dt), samples = nrow(dt), skipped = FALSE,
+             error = NA_character_)
+}
+
 gdc_data_release <- function(cfg) {
   tryCatch(
     resp_body_json(req_perform(request(file.path(cfg$gdc_api, "status"))))$data_release %||% NA_character_,
@@ -240,21 +322,31 @@ main <- function() {
   }
   cfg <- read_yaml("config/tcga_download.yml")
   cohorts <- read.delim("config/tcga_cohorts.tsv", stringsAsFactors = FALSE)
+  fail_row <- function(cohort, modality, e) {
+    message(sprintf("[%s/%s] FAILED: %s", cohort, modality, conditionMessage(e)))
+    data.table(cohort = cohort, modality = modality,
+               files = NA_integer_, features = NA_integer_,
+               samples = NA_integer_, skipped = FALSE,
+               error = conditionMessage(e))
+  }
   # A failing cohort is recorded in the log and does not stop the rest;
   # rerun the script to retry it.
-  log <- rbindlist(lapply(seq_len(nrow(cohorts)), function(i) {
+  expr_log <- rbindlist(lapply(seq_len(nrow(cohorts)), function(i) {
     tryCatch(
       download_cohort(cfg, cohorts$cohort[i], cohorts$modality[i]),
-      error = function(e) {
-        message(sprintf("[%s/%s] FAILED: %s", cohorts$cohort[i],
-                        cohorts$modality[i], conditionMessage(e)))
-        data.table(cohort = cohorts$cohort[i], modality = cohorts$modality[i],
-                   files = NA_integer_, features = NA_integer_,
-                   samples = NA_integer_, skipped = FALSE,
-                   error = conditionMessage(e))
-      }
+      error = function(e) fail_row(cohorts$cohort[i], cohorts$modality[i], e)
     )
   }))
+  # Clinical tables are per project, so unique() the cohort list (RNA and
+  # miRNA rows for the same project share one patient table).
+  clin_cohorts <- unique(cohorts$cohort)
+  clin_log <- rbindlist(lapply(clin_cohorts, function(cohort) {
+    tryCatch(
+      download_clinical(cfg, cohort),
+      error = function(e) fail_row(cohort, "clinical", e)
+    )
+  }))
+  log <- rbind(expr_log, clin_log)
   log[, `:=`(gdc_data_release = gdc_data_release(cfg),
              downloaded_at = format(Sys.time(), tz = "UTC", usetz = TRUE))]
   fwrite(log, file.path(cfg$output_dir, "download_log.csv"))
@@ -264,7 +356,8 @@ main <- function() {
          paste(log$cohort[!is.na(log$error)], collapse = ", "),
          "; rerun to retry")
   }
-  message("done: ", nrow(log), " cohorts written to ", cfg$output_dir)
+  message("done: ", sum(log$modality != "clinical"), " expression matrices and ",
+          sum(log$modality == "clinical"), " clinical tables in ", cfg$output_dir)
 }
 
 if (sys.nframe() == 0L) main()
