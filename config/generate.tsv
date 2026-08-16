@@ -1,0 +1,11 @@
+param	value
+filtered_dir	data/processed/filtered
+output_dir	data/generated
+new_size	1000
+apply_log	false
+batch_frac	0.1
+CVAE_wide_network	false
+val_ratio	0.2
+verbose	minimal
+skip_existing	true
+save_heatmaps	true

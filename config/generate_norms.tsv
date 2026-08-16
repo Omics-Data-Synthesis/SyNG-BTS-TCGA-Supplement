@@ -1,0 +1,4 @@
+label	suffix
+raw	_filtered.csv
+TC	_filtered_TC.csv
+DESeq	_filtered_DESeq.csv

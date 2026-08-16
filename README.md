@@ -86,7 +86,7 @@ Add each file together with the stage that reads it. Currently present: `tcga_co
 | `tcga_cohorts.tsv`, `tcga_download.yml` | TCGA query, source version, and the cohort list. Read by stage 01. |
 | `datasets.tsv`, `group_maps.tsv` | Per dataset: the clinical variable, Biotab column, recode rule, and published sample/marker counts. Read by stages 02 and 03. |
 | `preprocess.tsv` | Marker-filtering paths and the auto-threshold binning parameters. Read by stage 03. |
-| generation | Models, hyperparameters, generated sample counts, etc. |
+| `generate.tsv`, `generate_models.tsv`, `generate_norms.tsv`, `generate_train.tsv`, `generate_off_aug.tsv` | Shared generate() settings, per-modality CVAE lists, training schedules, RNA off_aug grid, and raw/TC/DESeq suffixes. Seed is `SEED` in `04_generate/run.py`. Read by stage 04. |
 
 Formats: Ideally use **TSV** when there is one row per cohort, something like **YAML** for nested or optional parameters.
 

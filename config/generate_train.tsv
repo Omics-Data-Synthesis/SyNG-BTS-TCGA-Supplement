@@ -1,0 +1,3 @@
+modality	learning_rate	epoch	early_stop_patience
+mirna	0.0005	3000	20
+rnaseq	0.00015	10000	200
