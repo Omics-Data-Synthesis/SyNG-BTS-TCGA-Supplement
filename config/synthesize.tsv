@@ -1,0 +1,12 @@
+param	value
+filtered_dir	data/processed/filtered
+generated_dir	data/generated
+n_draws	5
+n_sizes	12
+min_class_subset	7
+apply_log	false
+skip_existing	true
+methods	LOGIS,SVM,KNN,RF,XGB
+metrics	f1_score,accuracy,auc
+static_metric	f1_score
+hnsc_dataset_id	HNSC_anatomic_organ_subdivision
