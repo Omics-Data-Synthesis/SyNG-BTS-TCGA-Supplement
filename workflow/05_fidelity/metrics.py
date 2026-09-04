@@ -58,7 +58,9 @@ def replace_zero_sd(real: np.ndarray, gen: np.ndarray) -> np.ndarray:
 
 
 def clip_nonfinite(mat: np.ndarray) -> np.ndarray:
-    out = np.asarray(mat, dtype=float)
+    # pandas 3 CoW: DataFrame[cols].to_numpy() is a read-only view.
+    # np.asarray(..., dtype=float) does not copy, so in-place writes fail.
+    out = np.array(mat, dtype=float, copy=True)
     out[~np.isfinite(out)] = 0.0
     out[out < 0] = 0.0
     return out
