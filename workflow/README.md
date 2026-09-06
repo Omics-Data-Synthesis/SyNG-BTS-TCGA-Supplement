@@ -19,7 +19,7 @@ group labels have been dropped, so the sample set has to be fixed first.
 | 06 | SyntheSize | `uv run workflow/06_synthesize/run.py` | `data/processed/`, `data/generated/` | `results/curves_*.csv`, `results/curve_fits.csv` |
 | 07 | Figures and tables | `uv run workflow/07_figures/run.py` | `results/` | `figures/`, `results/tables/` |
 
-**Stage 05 should also write the UMAP coordinates.** cARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10` are computed by `dana_dea.R` (needs `Rscript` on PATH). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.
+**Stage 05 should also write the UMAP coordinates.** cARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10_pvalue` / `ccc_log2_FC` are computed by `dana_dea.R` (needs `Rscript` on PATH). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.
 
 Stage 07 keeps one `figure_*.py` module per figure, each exposing `main()`, registered in the
 `FIGURES` list in `run.py`. `figure_cvae_architecture.py` is the worked example: it is a

@@ -1,5 +1,5 @@
 #!/usr/bin/env Rscript
-# DANA cccpcc and voom+limma CCC of -log10(p). Called by stage 05 run.py.
+# DANA cccpcc and voom+limma CCC of -log10(p) and log2 FC. Called by stage 05.
 #
 # Usage (from repository root):
 #   Rscript workflow/05_fidelity/dana_dea.R jobs.csv out.csv
@@ -112,13 +112,25 @@ ccpos_eval <- function(dat_real, dat_generated, coords, reverse_log, failure,
   })
 }
 
+na_dea <- function() {
+  list(ccc_log10_pvalue = NA_real_, ccc_log2_FC = NA_real_)
+}
+
+ccc_pair <- function(x, y) {
+  ok <- is.finite(x) & is.finite(y)
+  x <- x[ok]
+  y <- y[ok]
+  if (length(x) < 2) return(NA_real_)
+  round(DescTools::CCC(x, y)$rho.c$est, 4)
+}
+
 dea_eval <- function(dat_real, dat_generated, groups_real, groups_generated,
                      reverse_log, failure) {
   pair <- apply_failure(dat_real, dat_generated, failure)
   dat_real <- to_counts(pair[[1]], reverse_log)
   dat_generated <- to_counts(pair[[2]], reverse_log)
   genes <- colnames(dat_real)
-  if ((nrow(dat_real) + nrow(dat_generated)) <= 2) return(NA_real_)
+  if ((nrow(dat_real) + nrow(dat_generated)) <= 2) return(na_dea())
   if (is.null(groups_real) || is.null(groups_generated)) {
     groups_real <- rep("A", nrow(dat_real))
     groups_real[sample(seq_len(nrow(dat_real)), round(0.5 * nrow(dat_real)))] <- "B"
@@ -136,10 +148,14 @@ dea_eval <- function(dat_real, dat_generated, groups_real, groups_generated,
     finite_g <- is.finite(log10(pv_g))
     if (any(!finite_r)) pv_r[!finite_r] <- min(pv_r[finite_r], na.rm = TRUE)
     if (any(!finite_g)) pv_g[!finite_g] <- min(pv_g[finite_g], na.rm = TRUE)
-    round(DescTools::CCC(-log10(pv_r[genes]), -log10(pv_g[genes]))$rho.c$est, 4)
+    # voom + limma coefficients are log2 fold-changes for the group contrast.
+    list(
+      ccc_log10_pvalue = ccc_pair(-log10(pv_r[genes]), -log10(pv_g[genes])),
+      ccc_log2_FC = ccc_pair(fit_r$coefficients[genes, 2], fit_g$coefficients[genes, 2])
+    )
   }, error = function(e) {
     message("  dea_eval: ", conditionMessage(e))
-    NA_real_
+    na_dea()
   })
 }
 
@@ -183,17 +199,23 @@ for (i in seq_len(nrow(jobs))) {
   twell <- as.numeric(job$twell)
 
   cccpcc <- ccpos_eval(dat_r, dat_g, coords, reverse_log, failure, tzero, tpoor, twell)
-  ccc_log10 <- dea_eval(dat_r, dat_g, real$groups, gen$groups, reverse_log, failure)
+  dea <- dea_eval(dat_r, dat_g, real$groups, gen$groups, reverse_log, failure)
 
   rows[[length(rows) + 1]] <- data.frame(
     draw = job$draw,
     cccpcc = cccpcc,
-    ccc_log10 = ccc_log10,
+    ccc_log10_pvalue = dea$ccc_log10_pvalue,
+    ccc_log2_FC = dea$ccc_log2_FC,
     stringsAsFactors = FALSE
   )
 }
 
 out <- if (length(rows)) do.call(rbind, rows) else {
-  data.frame(draw = integer(), cccpcc = numeric(), ccc_log10 = numeric())
+  data.frame(
+    draw = integer(),
+    cccpcc = numeric(),
+    ccc_log10_pvalue = numeric(),
+    ccc_log2_FC = numeric()
+  )
 }
 write.csv(out, out_path, row.names = FALSE)

@@ -1,8 +1,8 @@
 # Stage 05: fidelity metrics and UMAP coordinates for every generated table.
 #
 # Python computes cARI, CCC of feature means, MAD, and UMAP coordinates.
-# DANA cccpcc and voom+limma CCC of -log10(p) run in dana_dea.R (same maths
-# as helper_source/Xinyi_version/evaluate_synthetic.R). miRNA coordinates
+# DANA cccpcc and voom+limma CCC of -log10(p) and log2 FC run in dana_dea.R
+# (same maths as helper_source/Xinyi_version/evaluate_synthetic.R). miRNA coordinates
 # are config/mirna_coordinates.csv; dots in `name` are turned into hyphens
 # to match TCGA feature names. RNA-seq has no gene-coordinate table yet, so
 # cccpcc is NA for those jobs; the other metrics still run.
@@ -68,7 +68,8 @@ FIDELITY_FIELDS = [
     "n_features",
     "cARI",
     "cccpcc",
-    "ccc_log10",
+    "ccc_log10_pvalue",
+    "ccc_log2_FC",
     "ccc_meandiff",
     "mad_mean",
     "mad_sd",
@@ -160,7 +161,7 @@ def run_dana_dea(jobs_csv: Path, out_csv: Path) -> pd.DataFrame:
     if proc.stderr.strip():
         print(proc.stderr.strip())
     if not out_csv.exists():
-        return pd.DataFrame(columns=["draw", "cccpcc", "ccc_log10"])
+        return pd.DataFrame(columns=["draw", "cccpcc", "ccc_log10_pvalue", "ccc_log2_FC"])
     return pd.read_csv(out_csv)
 
 
@@ -346,7 +347,8 @@ def main() -> None:
                             "n_features": int(real_a.shape[1]),
                             "cARI": cari,
                             "cccpcc": "",
-                            "ccc_log10": "",
+                            "ccc_log10_pvalue": "",
+                            "ccc_log2_FC": "",
                             **mads,
                             "seed": SEED,
                         }
@@ -364,7 +366,8 @@ def main() -> None:
                 for row in py_rows:
                     rec = r_map.get(int(row["draw"]), {})
                     row["cccpcc"] = rec.get("cccpcc", "")
-                    row["ccc_log10"] = rec.get("ccc_log10", "")
+                    row["ccc_log10_pvalue"] = rec.get("ccc_log10_pvalue", "")
+                    row["ccc_log2_FC"] = rec.get("ccc_log2_FC", "")
             finally:
                 shutil.rmtree(tmpdir, ignore_errors=True)
 

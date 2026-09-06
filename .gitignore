@@ -28,3 +28,8 @@ renv/staging/
 
 # Helper files
 helper_source/
+
+data/.numba_cache/
+data/.mplconfig/
+figures/learning_curves/
+results/
