@@ -13,17 +13,19 @@ Run from the repository root:
 """
 
 import figure_cvae_architecture
+import figure_learning_curves
 
 # (label, module) pairs, built in this order.
 FIGURES = [
     ("cVAE architecture", figure_cvae_architecture),
-    # TODO: add the data-driven figures here
+    ("SyntheSize learning curves", figure_learning_curves),
+    # TODO: add the remaining data-driven figures here
 ]
 
-# TODO: add the data-driven figures as their source data lands in results/:
+# TODO: add the remaining data-driven figures as their source data lands in results/:
 #   cARI across the 24 miRNA cohorts        <- results/cari_mirna.csv
 #   quality evaluation for STAD             <- results/fidelity_stad.csv, results/umap_stad.csv
-#   HNSC learning curves                   <- results/curves_hnsc.csv
+#   HNSC learning curves                   <- results/curves_hnsc.csv (empty until HNSC is generated)
 #   cARI across the 5 RNA-seq cohorts       <- results/cari_rna.csv
 #   RNA-seq UMAP and MAD panels             <- results/fidelity_rna.csv, results/umap_rna.csv
 
