@@ -1,12 +1,15 @@
-# Stage 03: drop NA groups, log2(x+1), filter markers, reverse-log, TC / DESeq.
+# Stage 03: drop NA groups (binary only), log2(x+1), filter markers, reverse-log,
+# TC / DESeq.
 #
 # miRNA: auto-detect mean threshold x* (Xinyi half-max-after-peak; std is
 # recorded but not applied). RNA-seq COAD / SKCM: fixed mean and SD cutoffs
-# from config/datasets.tsv. Other RNA-seq rows are preprocess=skip for now.
+# from config/datasets.tsv. grouping=none RNA-seq (LAML / READ / PAAD) uses
+# the same fixed mean>5, sd>2 filter but keeps every sample and writes no
+# groups column.
 #
-# Reads group labels from stage 02 and the matching raw expression matrix
-# from data/raw/. Writes filtered and normalised tables under
-# data/processed/filtered/, diagnostic plots under data/processed/plots/,
+# Reads group labels from stage 02 (binary rows) and the matching raw
+# expression matrix from data/raw/. Writes filtered and normalised tables
+# under data/processed/filtered/, diagnostic plots under data/processed/plots/,
 # and results/marker_filtering.csv.
 #
 # This stage is deterministic and declares no seed.
@@ -43,6 +46,11 @@ def read_kv_tsv(path: Path) -> dict[str, str]:
 def read_datasets(path: Path) -> list[dict[str, str]]:
     with path.open(newline="") as f:
         return list(csv.DictReader(f, delimiter="\t"))
+
+
+def grouping_of(row: dict[str, str]) -> str:
+    text = (row.get("grouping") or "binary").strip()
+    return text or "binary"
 
 
 def find_halfmax_threshold(
@@ -188,33 +196,37 @@ def process_one(row: dict[str, str], cfg: dict[str, str]) -> dict | None:
         print(f"[{dataset_id}] skip", flush=True)
         return None
 
-    groups_path = ROOT / cfg["grouped_dir"] / f"{dataset_id}.csv"
     expr_path = ROOT / cfg["raw_dir"] / row["modality"] / f"TCGA-{row['cohort']}.csv"
-    if not groups_path.exists():
-        raise FileNotFoundError(f"missing group table (run stage 02 first): {groups_path}")
     if not expr_path.exists():
         raise FileNotFoundError(f"missing expression matrix: {expr_path}")
 
     print(f"[{dataset_id}] filtering ({method})", flush=True)
-    groups = pd.read_csv(groups_path, dtype={"Sample": str, "groups": "string"})
     expr = pd.read_csv(expr_path, index_col=0)
-    gmap = dict(zip(groups["Sample"], groups["groups"]))
-    missing = [s for s in expr.columns if s not in gmap]
-    if missing:
-        raise ValueError(
-            f"{dataset_id}: {len(missing)} expression barcodes have no group row "
-            f"(e.g. {missing[0]})"
-        )
+    ungrouped = grouping_of(row) == "none"
     df = expr.T
     df.insert(0, "Sample", df.index.astype(str))
-    df["groups"] = [gmap[s] for s in expr.columns]
+    if ungrouped:
+        meta_cols = ["Sample"]
+    else:
+        groups_path = ROOT / cfg["grouped_dir"] / f"{dataset_id}.csv"
+        if not groups_path.exists():
+            raise FileNotFoundError(f"missing group table (run stage 02 first): {groups_path}")
+        groups = pd.read_csv(groups_path, dtype={"Sample": str, "groups": "string"})
+        gmap = dict(zip(groups["Sample"], groups["groups"]))
+        missing = [s for s in expr.columns if s not in gmap]
+        if missing:
+            raise ValueError(
+                f"{dataset_id}: {len(missing)} expression barcodes have no group row "
+                f"(e.g. {missing[0]})"
+            )
+        df["groups"] = [gmap[s] for s in expr.columns]
+        meta_cols = [c for c in df.columns if c in META_COLS]
     numeric_cols = [c for c in df.columns if c not in META_COLS]
-    meta_cols = [c for c in df.columns if c in META_COLS]
 
     n_samples_raw = len(df)
     n_features_raw = len(numeric_cols)
 
-    if "groups" in df.columns:
+    if not ungrouped and "groups" in df.columns:
         g = df["groups"]
         keep = g.notna() & ~g.astype(str).isin(["", "<NA>", "nan", "None", "NA"])
         df = df.loc[keep].copy()

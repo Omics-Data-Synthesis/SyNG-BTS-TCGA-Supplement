@@ -2,9 +2,10 @@
 #
 # Reads filtered tables from stage 03 (already log2(x+1)). miRNA and RNA-seq
 # share apply_log=False, new_size, and the generate() call. Models come from
-# config/generate_models.tsv; learning_rate / epoch / patience from
-# config/generate_train.tsv. The seed is SEED below. RNA also sweeps
-# off_aug in config/generate_off_aug.tsv (none vs AE_head, AE_head_num=2).
+# config/generate_models.tsv keyed by (modality, grouping); learning_rate /
+# epoch / patience from config/generate_train.tsv. grouping=none RNA uses VAE
+# with groups=None. The seed is SEED below. Binary RNA also sweeps off_aug
+# in config/generate_off_aug.tsv (none vs AE_head, AE_head_num=2).
 #
 # Skip-if-exists: a run whose generated.csv is already on disk is not retrained.
 # A failing run is recorded in results/training_time.csv and does not stop
@@ -77,6 +78,11 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f, delimiter="\t"))
 
 
+def grouping_of(row: dict[str, str]) -> str:
+    text = (row.get("grouping") or "binary").strip()
+    return text or "binary"
+
+
 def as_bool(text: str) -> bool:
     return (text or "").strip().lower() in {"1", "true", "yes"}
 
@@ -95,7 +101,7 @@ def load_features_and_groups(csv_path: Path) -> tuple[pd.DataFrame, pd.Series | 
         if len(unique_vals) != 2:
             raise ValueError(
                 f"{csv_path.name}: groups has {len(unique_vals)} unique value(s); "
-                "CVAE needs exactly 2"
+                "conditional models need exactly 2 (ungrouped tables must omit groups)"
             )
         if pd.api.types.is_numeric_dtype(raw):
             groups = raw.apply(lambda x: str(int(round(x))) if pd.notna(x) else "NA")
@@ -155,25 +161,26 @@ def off_aug_tag(off_aug: str | None, ae_head_num: int | None) -> str:
     return f"offaug_{off_aug}"
 
 
-def load_off_aug(path: Path) -> dict[str, list[dict[str, str]]]:
-    by_mod: dict[str, list[dict[str, str]]] = {}
+def load_off_aug(path: Path) -> dict[tuple[str, str], list[dict[str, str]]]:
+    by_key: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in read_tsv(path):
-        by_mod.setdefault(row["modality"], []).append(row)
-    return by_mod
+        by_key.setdefault((row["modality"], grouping_of(row)), []).append(row)
+    return by_key
 
 
 def planned_jobs(
     datasets: list[dict[str, str]],
-    models_by_mod: dict[str, list[str]],
+    models_by_key: dict[tuple[str, str], list[str]],
     norms: list[dict[str, str]],
-    off_aug_by_mod: dict[str, list[dict[str, str]]],
+    off_aug_by_key: dict[tuple[str, str], list[dict[str, str]]],
 ) -> list[tuple[dict[str, str], dict[str, str], str, dict[str, str]]]:
     jobs = []
     for ds in datasets:
         if (ds.get("preprocess") or "").strip() == "skip":
             continue
-        models = models_by_mod.get(ds["modality"], [])
-        aug_rows = off_aug_by_mod.get(ds["modality"], [{"off_aug": "", "AE_head_num": ""}])
+        key = (ds["modality"], grouping_of(ds))
+        models = models_by_key.get(key, [])
+        aug_rows = off_aug_by_key.get(key, [{"off_aug": "", "AE_head_num": ""}])
         for norm in norms:
             for model in models:
                 for aug in aug_rows:
@@ -302,26 +309,30 @@ def main() -> None:
     datasets = read_tsv(DATASETS_TSV)
     norms = read_tsv(NORMS_TSV)
     train_by_mod = load_train_cfg(TRAIN_TSV)
-    off_aug_by_mod = load_off_aug(OFF_AUG_TSV)
-    models_by_mod: dict[str, list[str]] = {}
+    off_aug_by_key = load_off_aug(OFF_AUG_TSV)
+    models_by_key: dict[tuple[str, str], list[str]] = {}
     for row in read_tsv(MODELS_TSV):
-        models_by_mod.setdefault(row["modality"], []).append(row["model"])
+        models_by_key.setdefault((row["modality"], grouping_of(row)), []).append(row["model"])
 
     filtered_dir = ROOT / cfg["filtered_dir"]
     output_dir = ROOT / cfg["output_dir"]
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    jobs = planned_jobs(datasets, models_by_mod, norms, off_aug_by_mod)
+    jobs = planned_jobs(datasets, models_by_key, norms, off_aug_by_key)
     print(f"SEED             : {SEED}")
     print(f"Jobs             : {len(jobs)}")
-    for mod in ("mirna", "rnaseq"):
+    for key in sorted(models_by_key):
+        mod, grouping = key
         t = train_by_mod[mod]
         augs = [
-            off_aug_tag(as_optional_str(r.get("off_aug", "")), int(r["AE_head_num"]) if (r.get("AE_head_num") or "").strip() else None)
-            for r in off_aug_by_mod.get(mod, [])
+            off_aug_tag(
+                as_optional_str(r.get("off_aug", "")),
+                int(r["AE_head_num"]) if (r.get("AE_head_num") or "").strip() else None,
+            )
+            for r in off_aug_by_key.get(key, [])
         ]
         print(
-            f"{mod:16s} : models={models_by_mod.get(mod, [])}  "
+            f"{mod}/{grouping:8s} : models={models_by_key[key]}  "
             f"lr={t['learning_rate']}  epoch={t['epoch']}  "
             f"patience={t['early_stop_patience']}  off_aug={augs}"
         )

@@ -1,7 +1,10 @@
-modality	model
-mirna	CVAE1-5
-mirna	CVAE1-10
-mirna	CVAE1-50
-rnaseq	CVAE1-50
-rnaseq	CVAE1-100
-rnaseq	CVAE1-200
+modality	grouping	model
+mirna	binary	CVAE1-5
+mirna	binary	CVAE1-10
+mirna	binary	CVAE1-50
+rnaseq	binary	CVAE1-50
+rnaseq	binary	CVAE1-100
+rnaseq	binary	CVAE1-200
+rnaseq	none	VAE1-50
+rnaseq	none	VAE1-100
+rnaseq	none	VAE1-200

@@ -24,7 +24,7 @@ THCA_initial_pathologic_dx_year,THCA,mirna,initial_pathologic_dx_year,initial_pa
 THYM_primary_pathology_history_myasthenia_gravis,THYM,mirna,primary_pathology_history_myasthenia_gravis,history_myasthenia_gravis,binary_majority,NO -> 0; YES -> 1,126,126,123,123,88,35,True,data/processed/grouped/THYM_primary_pathology_history_myasthenia_gravis.csv
 UCS_primary_pathology_total_pelv_lnr,UCS,mirna,primary_pathology_total_pelv_lnr,lymph_nodes_pelvic_examined_count,median_split_na0,median_split >= 7 -> 1,57,57,57,57,27,30,True,data/processed/grouped/UCS_primary_pathology_total_pelv_lnr.csv
 RNA_COAD_tumor_status,COAD,rnaseq,tumor_status,tumor_status,binary_majority,WITH TUMOR -> 0; TUMOR FREE -> 1,524,524,467,467,232,235,True,data/processed/grouped/RNA_COAD_tumor_status.csv
-RNA_LAML_blast_count,LAML,rnaseq,blast_count,blast_count,median_split,median_split >= 32 -> 1,151,151,151,151,66,85,True,data/processed/grouped/RNA_LAML_blast_count.csv
-RNA_READ_ajcc_tumor_pathologic_pt,READ,rnaseq,ajcc_tumor_pathologic_pt,ajcc_tumor_pathologic_pt,map,T0 -> 0; T1 -> 0; T1a -> 0; T1b -> 0; T2 -> 0; T2a -> 0; T2b -> 0; T3 -> 1; T3a -> 1; T3b -> 1; T4 -> 1; T4a -> 1; T4b -> 1; TX -> 1; Tis -> 1,177,177,174,174,41,133,True,data/processed/grouped/RNA_READ_ajcc_tumor_pathologic_pt.csv
+RNA_LAML,LAML,rnaseq,,,none,,151,151,151,151,0,0,True,
+RNA_READ,READ,rnaseq,,,none,,177,177,177,177,0,0,True,
 RNA_SKCM_breslow_thickness_at_diagnosis,SKCM,rnaseq,breslow_thickness_at_diagnosis,breslow_thickness_at_diagnosis,median_split,median_split > 3 -> 1,473,473,361,361,186,175,True,data/processed/grouped/RNA_SKCM_breslow_thickness_at_diagnosis.csv
-RNA_PAAD_ajcc_nodes_pathologic_pn,PAAD,rnaseq,ajcc_nodes_pathologic_pn,ajcc_nodes_pathologic_pn,map,N0 -> 0; N1 -> 1; N1a -> 1; N1b -> 1; N1c -> 1; N2 -> 1; N2a -> 1; N2b -> 1; N2c -> 1; N3 -> 1; N3a -> 1; N3b -> 1; NX -> 1,183,183,182,182,50,132,True,data/processed/grouped/RNA_PAAD_ajcc_nodes_pathologic_pn.csv
+RNA_PAAD,PAAD,rnaseq,,,none,,183,183,183,183,0,0,True,

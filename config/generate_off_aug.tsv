@@ -1,4 +1,5 @@
-modality	off_aug	AE_head_num
-mirna		
-rnaseq		
-rnaseq	AE_head	2
+modality	grouping	off_aug	AE_head_num
+mirna	binary		
+rnaseq	binary		
+rnaseq	binary	AE_head	2
+rnaseq	none		

@@ -1,11 +1,12 @@
 # Stage 02: attach a binary group label to every expression sample.
 #
-# For each row in config/datasets.tsv, reads expression sample barcodes and the
-# BCR patient table from data/raw/, recodes one clinical column to groups 0/1
-# (rules in recode.py / config/group_maps.tsv), and writes
+# For each row in config/datasets.tsv with grouping=binary, reads expression
+# sample barcodes and the BCR patient table from data/raw/, recodes one clinical
+# column to groups 0/1 (rules in recode.py / config/group_maps.tsv), and writes
 # data/processed/grouped/<dataset_id>.csv with Sample, patient, and groups.
 # Samples whose recoded label is missing are kept with groups=NA; stage 03
-# drops them before marker filtering.
+# drops them before marker filtering. grouping=none rows are logged and skipped
+# (no clinical recode, no grouped CSV).
 #
 # This stage is deterministic and declares no seed.
 #
@@ -49,6 +50,11 @@ def read_maps(path: Path) -> dict[str, dict[str, str]]:
         for row in csv.DictReader(f, delimiter="\t"):
             maps.setdefault(row["map_name"], {})[row["value"]] = row["group"]
     return maps
+
+
+def grouping_of(row: dict[str, str]) -> str:
+    text = (row.get("grouping") or "binary").strip()
+    return text or "binary"
 
 
 def split_levels(text: str) -> list[str]:
@@ -157,7 +163,43 @@ def main() -> None:
     maps = read_maps(MAPS_TSV)
     datasets = read_datasets(DATASETS_TSV)
 
-    rows = [define_one(ds, maps, out_dir) for ds in datasets]
+    rows = []
+    for ds in datasets:
+        if grouping_of(ds) == "none":
+            n_raw = len(load_sample_barcodes(ds["cohort"], ds["modality"]))
+            n_raw_ref = int(ds["n_raw_ref"]) if ds.get("n_raw_ref") else None
+            n_after_ref = int(ds["n_after_na_ref"]) if ds.get("n_after_na_ref") else None
+            match = n_after_ref is None or n_raw == n_after_ref
+            note = ""
+            if n_raw_ref is not None and n_raw != n_raw_ref:
+                note = f"n_raw {n_raw} vs ref {n_raw_ref}"
+            print(
+                f"[{ds['dataset_id']}] grouping=none, skip recode  "
+                f"samples {n_raw}"
+                + (f"  MISMATCH: {note}" if note else ""),
+                flush=True,
+            )
+            rows.append(
+                {
+                    "dataset_id": ds["dataset_id"],
+                    "cohort": ds["cohort"],
+                    "modality": ds["modality"],
+                    "clinical_variable": ds.get("clinical_variable", ""),
+                    "clinical_column": ds.get("clinical_column", ""),
+                    "recode": "none",
+                    "mapping": "",
+                    "n_raw": n_raw,
+                    "n_raw_ref": n_raw_ref,
+                    "n_after_na": n_raw,
+                    "n_after_na_ref": n_after_ref,
+                    "n_group_0": 0,
+                    "n_group_1": 0,
+                    "match_n_after_na": match and not note,
+                    "output": "",
+                }
+            )
+            continue
+        rows.append(define_one(ds, maps, out_dir))
     RESULTS_CSV.parent.mkdir(parents=True, exist_ok=True)
     with RESULTS_CSV.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))

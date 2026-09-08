@@ -24,4 +24,7 @@ THCA_initial_pathologic_dx_year,mirna,auto_mean,573,573,573,1881,1593,1593,2.971
 THYM_primary_pathology_history_myasthenia_gravis,mirna,auto_mean,126,123,123,1881,1524,1524,2.7465,2.747,1.7882,1.788,446,446,76.3,True,True,True,ok
 UCS_primary_pathology_total_pelv_lnr,mirna,auto_mean,57,57,57,1881,1414,1414,3.7276,3.728,2.2694,2.269,330,330,82.5,True,True,True,ok
 RNA_COAD_tumor_status,rnaseq,fixed_mean_sd,524,467,467,60660,57567,57567,5.0,5.0,2.0,2.0,725,723,98.8,True,True,False,ok
+RNA_LAML,rnaseq,fixed_mean_sd,151,151,151,60660,57508,,5.0,,2.0,,850,,98.6,True,True,True,ok
+RNA_READ,rnaseq,fixed_mean_sd,177,177,177,60660,54477,,5.0,,2.0,,633,,99.0,True,True,True,ok
 RNA_SKCM_breslow_thickness_at_diagnosis,rnaseq,fixed_mean_sd,473,361,361,60660,57063,57063,6.0,6.0,2.0,2.0,1084,1084,98.2,True,True,True,ok
+RNA_PAAD,rnaseq,fixed_mean_sd,183,183,183,60660,55553,,5.0,,2.0,,866,,98.6,True,True,True,ok

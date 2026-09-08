@@ -7,7 +7,7 @@
 #
 # Processed data is already log2(x+1), so apply_log comes from
 # config/synthesize.tsv (false). Skip-if-missing / skip-if-exists match stage 04.
-# Figures are not written here.
+# grouping=none datasets are skipped: classifiers need a binary label.
 #
 # Run from the repository root:
 #
@@ -79,6 +79,11 @@ def read_tsv(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(f, delimiter="\t"))
 
 
+def grouping_of(row: dict[str, str]) -> str:
+    text = (row.get("grouping") or "binary").strip()
+    return text or "binary"
+
+
 def as_bool(text: str) -> bool:
     return (text or "").strip().lower() in {"1", "true", "yes"}
 
@@ -96,20 +101,23 @@ def off_aug_tag(off_aug: str | None, ae_head_num: int | None) -> str:
     return f"offaug_{off_aug}"
 
 
-def load_off_aug(path: Path) -> dict[str, list[dict[str, str]]]:
-    by_mod: dict[str, list[dict[str, str]]] = {}
+def load_off_aug(path: Path) -> dict[tuple[str, str], list[dict[str, str]]]:
+    by_key: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in read_tsv(path):
-        by_mod.setdefault(row["modality"], []).append(row)
-    return by_mod
+        by_key.setdefault((row["modality"], grouping_of(row)), []).append(row)
+    return by_key
 
 
-def planned_jobs(datasets, models_by_mod, norms, off_aug_by_mod):
+def planned_jobs(datasets, models_by_key, norms, off_aug_by_key):
     jobs = []
     for ds in datasets:
         if (ds.get("preprocess") or "").strip() == "skip":
             continue
-        models = models_by_mod.get(ds["modality"], [])
-        aug_rows = off_aug_by_mod.get(ds["modality"], [{"off_aug": "", "AE_head_num": ""}])
+        if grouping_of(ds) == "none":
+            continue
+        key = (ds["modality"], grouping_of(ds))
+        models = models_by_key.get(key, [])
+        aug_rows = off_aug_by_key.get(key, [{"off_aug": "", "AE_head_num": ""}])
         for norm in norms:
             for model in models:
                 for aug in aug_rows:
@@ -315,10 +323,10 @@ def main() -> None:
     cfg = read_kv_tsv(SYNTHESIZE_TSV)
     datasets = read_tsv(DATASETS_TSV)
     norms = read_tsv(NORMS_TSV)
-    off_aug_by_mod = load_off_aug(OFF_AUG_TSV)
-    models_by_mod: dict[str, list[str]] = {}
+    off_aug_by_key = load_off_aug(OFF_AUG_TSV)
+    models_by_key: dict[tuple[str, str], list[str]] = {}
     for row in read_tsv(MODELS_TSV):
-        models_by_mod.setdefault(row["modality"], []).append(row["model"])
+        models_by_key.setdefault((row["modality"], grouping_of(row)), []).append(row["model"])
 
     methods = [m.strip() for m in cfg["methods"].split(",") if m.strip()]
     metric_names = [m.strip() for m in cfg["metrics"].split(",") if m.strip()]
@@ -332,7 +340,7 @@ def main() -> None:
     cache_dir = ROOT / "data" / "processed" / "curves"
     hnsc_id = cfg["hnsc_dataset_id"]
 
-    jobs = planned_jobs(datasets, models_by_mod, norms, off_aug_by_mod)
+    jobs = planned_jobs(datasets, models_by_key, norms, off_aug_by_key)
     np.random.seed(SEED)
     print(f"SEED             : {SEED}")
     print(f"Jobs             : {len(jobs)}")

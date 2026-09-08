@@ -1,30 +1,30 @@
-dataset_id	cohort	modality	clinical_variable	clinical_column	recode	map_name	keep_levels	drop_levels	preprocess	mean_threshold	sd_threshold	n_raw_ref	n_after_na_ref	markers_raw_ref	markers_nonzero_ref	x_star_ref	y_star_ref	markers_final_ref
-BLCA_histologic_subtype	BLCA	mirna	histologic_subtype	histologic_subtype	binary_majority				auto_mean			437	432	1881	1567	1.287	1.507	503
-BRCA_breast_carcinoma_estrogen_receptor_status	BRCA	mirna	breast_carcinoma_estrogen_receptor_status	er_status_by_ihc	binary_majority			Indeterminate	auto_mean			1207	1144	1881	1601	0.607	0.930	570
-COAD_tumor_status	COAD	mirna	tumor_status	tumor_status	binary_majority				auto_mean			414	414	1881	1531	1.865	1.419	351
-ESCA_icd_o_3_histology	ESCA	mirna	icd_o_3_histology	icd_o_3_histology	map	esca_icd_o_3_histology			auto_mean			200	200	1881	1490	1.613	1.419	404
-HNSC_anatomic_organ_subdivision	HNSC	mirna	anatomic_organ_subdivision	anatomic_organ_subdivision	map	hnsc_anatomic_organ_subdivision			auto_mean			569	569	1881	1616	1.063	1.080	529
-KICH_lymph_nodes_examined	KICH	mirna	lymph_nodes_examined	lymph_nodes_examined	binary_majority				auto_mean			91	91	1881	1379	1.371	1.241	416
-KIRC_ajcc_pathologic_tumor_stage	KIRC	mirna	ajcc_pathologic_tumor_stage	ajcc_pathologic_tumor_stage	map	ajcc_pathologic_tumor_stage			auto_mean			616	613	1881	1501	2.704	1.520	280
-KIRP_ajcc_pathologic_tumor_stage	KIRP	mirna	ajcc_pathologic_tumor_stage	ajcc_pathologic_tumor_stage	map	ajcc_pathologic_tumor_stage			auto_mean			326	295	1881	1499	1.037	1.071	481
-LAML_wbc_24hr_of_banking	LAML	mirna	wbc_24hr_of_banking	wbc_24hr_of_banking	median_split				auto_mean			187	187	1881	1297	0.906	1.169	391
-LIHC_platelet_norm_range_lower	LIHC	mirna	platelet_norm_range_lower	platelet_norm_range_lower	median_split				auto_mean			352	352	1881	1512	0.814	1.316	590
-LUAD_initial_pathologic_dx_year	LUAD	mirna	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			557	557	1881	1584	2.665	1.747	334
-LUSC_initial_pathologic_dx_year	LUSC	mirna	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			516	516	1881	1602	0.697	1.127	630
-OV_tumor_residual_disease	OV	mirna	tumor_residual_disease	residual_disease_largest_nodule	map	ov_residual_disease			auto_mean			575	502	1881	1600	2.047	1.692	452
-PAAD_anatomic_neoplasm_subdivision	PAAD	mirna	anatomic_neoplasm_subdivision	anatomic_neoplasm_subdivision	map	paad_anatomic_neoplasm_subdivision			auto_mean			183	183	1881	1449	1.447	1.110	423
-PCPG_primary_pathology_histological_type	PCPG	mirna	primary_pathology_histological_type	histologic_diagnosis	map	pcpg_histologic_diagnosis			auto_mean			187	187	1881	1436	1.962	1.414	417
-PRAD_icd_o_3_histology	PRAD	mirna	icd_o_3_histology	icd_o_3_histology	binary_majority		8140/3|8550/3		auto_mean			551	536	1881	1513	2.568	1.351	287
-READ_tumor_status	READ	mirna	tumor_status	tumor_status	binary_majority				auto_mean			144	144	1881	1446	1.648	1.480	387
-SARC_primary_pathology_histological_type	SARC	mirna	primary_pathology_histological_type	histologic_diagnosis	map	sarc_histologic_diagnosis			auto_mean			263	263	1881	1471	4.817	2.778	225
-SKCM_initial_pathologic_dx_year	SKCM	mirna	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			449	449	1881	1600	1.062	1.296	630
-STAD_prospective_collection	STAD	mirna	prospective_collection	prospective_collection	binary_majority				auto_mean			490	490	1881	1556	1.195	1.151	446
-TGCT_histologic_diagnosis	TGCT	mirna	histologic_diagnosis	histologic_diagnosis	tgct_seminoma				auto_mean			156	139	1881	1546	2.293	1.654	522
-THCA_initial_pathologic_dx_year	THCA	mirna	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			573	573	1881	1593	2.971	1.498	324
-THYM_primary_pathology_history_myasthenia_gravis	THYM	mirna	primary_pathology_history_myasthenia_gravis	history_myasthenia_gravis	binary_majority				auto_mean			126	123	1881	1524	2.747	1.788	446
-UCS_primary_pathology_total_pelv_lnr	UCS	mirna	primary_pathology_total_pelv_lnr	lymph_nodes_pelvic_examined_count	median_split_na0				auto_mean			57	57	1881	1414	3.728	2.269	330
-RNA_COAD_tumor_status	COAD	rnaseq	tumor_status	tumor_status	binary_majority				fixed_mean_sd	5	2	524	467	60660	57567	5.000	2.000	723
-RNA_LAML_blast_count	LAML	rnaseq	blast_count	blast_count	median_split				skip			151	151	60660	57508	5.000	2.000	850
-RNA_READ_ajcc_tumor_pathologic_pt	READ	rnaseq	ajcc_tumor_pathologic_pt	ajcc_tumor_pathologic_pt	map	ajcc_tumor_pathologic_pt			skip			177	174	60660	54477	5.000	2.000	633
-RNA_SKCM_breslow_thickness_at_diagnosis	SKCM	rnaseq	breslow_thickness_at_diagnosis	breslow_thickness_at_diagnosis	median_split				fixed_mean_sd	6	2	473	361	60660	57063	6.000	2.000	1084
-RNA_PAAD_ajcc_nodes_pathologic_pn	PAAD	rnaseq	ajcc_nodes_pathologic_pn	ajcc_nodes_pathologic_pn	map	ajcc_nodes_pathologic_pn			skip			183	182	60660	55553	5.000	2.000	866
+dataset_id	cohort	modality	grouping	clinical_variable	clinical_column	recode	map_name	keep_levels	drop_levels	preprocess	mean_threshold	sd_threshold	n_raw_ref	n_after_na_ref	markers_raw_ref	markers_nonzero_ref	x_star_ref	y_star_ref	markers_final_ref
+BLCA_histologic_subtype	BLCA	mirna	binary	histologic_subtype	histologic_subtype	binary_majority				auto_mean			437	432	1881	1567	1.287	1.507	503
+BRCA_breast_carcinoma_estrogen_receptor_status	BRCA	mirna	binary	breast_carcinoma_estrogen_receptor_status	er_status_by_ihc	binary_majority			Indeterminate	auto_mean			1207	1144	1881	1601	0.607	0.930	570
+COAD_tumor_status	COAD	mirna	binary	tumor_status	tumor_status	binary_majority				auto_mean			414	414	1881	1531	1.865	1.419	351
+ESCA_icd_o_3_histology	ESCA	mirna	binary	icd_o_3_histology	icd_o_3_histology	map	esca_icd_o_3_histology			auto_mean			200	200	1881	1490	1.613	1.419	404
+HNSC_anatomic_organ_subdivision	HNSC	mirna	binary	anatomic_organ_subdivision	anatomic_organ_subdivision	map	hnsc_anatomic_organ_subdivision			auto_mean			569	569	1881	1616	1.063	1.080	529
+KICH_lymph_nodes_examined	KICH	mirna	binary	lymph_nodes_examined	lymph_nodes_examined	binary_majority				auto_mean			91	91	1881	1379	1.371	1.241	416
+KIRC_ajcc_pathologic_tumor_stage	KIRC	mirna	binary	ajcc_pathologic_tumor_stage	ajcc_pathologic_tumor_stage	map	ajcc_pathologic_tumor_stage			auto_mean			616	613	1881	1501	2.704	1.520	280
+KIRP_ajcc_pathologic_tumor_stage	KIRP	mirna	binary	ajcc_pathologic_tumor_stage	ajcc_pathologic_tumor_stage	map	ajcc_pathologic_tumor_stage			auto_mean			326	295	1881	1499	1.037	1.071	481
+LAML_wbc_24hr_of_banking	LAML	mirna	binary	wbc_24hr_of_banking	wbc_24hr_of_banking	median_split				auto_mean			187	187	1881	1297	0.906	1.169	391
+LIHC_platelet_norm_range_lower	LIHC	mirna	binary	platelet_norm_range_lower	platelet_norm_range_lower	median_split				auto_mean			352	352	1881	1512	0.814	1.316	590
+LUAD_initial_pathologic_dx_year	LUAD	mirna	binary	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			557	557	1881	1584	2.665	1.747	334
+LUSC_initial_pathologic_dx_year	LUSC	mirna	binary	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			516	516	1881	1602	0.697	1.127	630
+OV_tumor_residual_disease	OV	mirna	binary	tumor_residual_disease	residual_disease_largest_nodule	map	ov_residual_disease			auto_mean			575	502	1881	1600	2.047	1.692	452
+PAAD_anatomic_neoplasm_subdivision	PAAD	mirna	binary	anatomic_neoplasm_subdivision	anatomic_neoplasm_subdivision	map	paad_anatomic_neoplasm_subdivision			auto_mean			183	183	1881	1449	1.447	1.110	423
+PCPG_primary_pathology_histological_type	PCPG	mirna	binary	primary_pathology_histological_type	histologic_diagnosis	map	pcpg_histologic_diagnosis			auto_mean			187	187	1881	1436	1.962	1.414	417
+PRAD_icd_o_3_histology	PRAD	mirna	binary	icd_o_3_histology	icd_o_3_histology	binary_majority		8140/3|8550/3		auto_mean			551	536	1881	1513	2.568	1.351	287
+READ_tumor_status	READ	mirna	binary	tumor_status	tumor_status	binary_majority				auto_mean			144	144	1881	1446	1.648	1.480	387
+SARC_primary_pathology_histological_type	SARC	mirna	binary	primary_pathology_histological_type	histologic_diagnosis	map	sarc_histologic_diagnosis			auto_mean			263	263	1881	1471	4.817	2.778	225
+SKCM_initial_pathologic_dx_year	SKCM	mirna	binary	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			449	449	1881	1600	1.062	1.296	630
+STAD_prospective_collection	STAD	mirna	binary	prospective_collection	prospective_collection	binary_majority				auto_mean			490	490	1881	1556	1.195	1.151	446
+TGCT_histologic_diagnosis	TGCT	mirna	binary	histologic_diagnosis	histologic_diagnosis	tgct_seminoma				auto_mean			156	139	1881	1546	2.293	1.654	522
+THCA_initial_pathologic_dx_year	THCA	mirna	binary	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			573	573	1881	1593	2.971	1.498	324
+THYM_primary_pathology_history_myasthenia_gravis	THYM	mirna	binary	primary_pathology_history_myasthenia_gravis	history_myasthenia_gravis	binary_majority				auto_mean			126	123	1881	1524	2.747	1.788	446
+UCS_primary_pathology_total_pelv_lnr	UCS	mirna	binary	primary_pathology_total_pelv_lnr	lymph_nodes_pelvic_examined_count	median_split_na0				auto_mean			57	57	1881	1414	3.728	2.269	330
+RNA_COAD_tumor_status	COAD	rnaseq	binary	tumor_status	tumor_status	binary_majority				fixed_mean_sd	5	2	524	467	60660	57567	5.000	2.000	723
+RNA_LAML	LAML	rnaseq	none							fixed_mean_sd	5	2	151	151					
+RNA_READ	READ	rnaseq	none							fixed_mean_sd	5	2	177	177					
+RNA_SKCM_breslow_thickness_at_diagnosis	SKCM	rnaseq	binary	breslow_thickness_at_diagnosis	breslow_thickness_at_diagnosis	median_split				fixed_mean_sd	6	2	473	361	60660	57063	6.000	2.000	1084
+RNA_PAAD	PAAD	rnaseq	none							fixed_mean_sd	5	2	183	183					

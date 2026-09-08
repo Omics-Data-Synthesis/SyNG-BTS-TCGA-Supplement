@@ -1,9 +1,11 @@
 # Stage 05: fidelity metrics and UMAP coordinates for every generated table.
 #
-# Python computes cARI, CCC of feature means, MAD, and UMAP coordinates.
+# Python computes cARI, CCC of feature means, MAD, MedAE, and UMAP coordinates.
 # DANA cccpcc and voom+limma CCC of -log10(p) and log2 FC run in dana_dea.R
-# (same maths as helper_source/Xinyi_version/evaluate_synthetic.R). miRNA coordinates
-# are config/mirna_coordinates.csv; dots in `name` are turned into hyphens
+# (same maths as helper_source/Xinyi_version/evaluate_synthetic.R) for binary
+# grouped jobs only. grouping=none RNA skips DANA/DEA (no two-class contrast)
+# but still computes cARI, MAD, MedAE, and UMAP. miRNA coordinates are
+# config/mirna_coordinates.csv; dots in `name` are turned into hyphens
 # to match TCGA feature names. RNA-seq has no gene-coordinate table yet, so
 # cccpcc is NA for those jobs; the other metrics still run.
 #
@@ -38,6 +40,7 @@ from metrics import (
     cluster_cari,
     load_table,
     mad_metrics,
+    sample_to_n,
     stratified_sample,
     umap_coordinates,
 )
@@ -74,6 +77,9 @@ FIDELITY_FIELDS = [
     "mad_mean",
     "mad_sd",
     "mad_cv",
+    "medae_mean",
+    "medae_sd",
+    "medae_cv",
     "seed",
 ]
 
@@ -86,6 +92,11 @@ def read_kv_tsv(path: Path) -> dict[str, str]:
 def read_tsv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="") as f:
         return list(csv.DictReader(f, delimiter="\t"))
+
+
+def grouping_of(row: dict[str, str]) -> str:
+    text = (row.get("grouping") or "binary").strip()
+    return text or "binary"
 
 
 def as_bool(text: str) -> bool:
@@ -105,20 +116,21 @@ def off_aug_tag(off_aug: str | None, ae_head_num: int | None) -> str:
     return f"offaug_{off_aug}"
 
 
-def load_off_aug(path: Path) -> dict[str, list[dict[str, str]]]:
-    by_mod: dict[str, list[dict[str, str]]] = {}
+def load_off_aug(path: Path) -> dict[tuple[str, str], list[dict[str, str]]]:
+    by_key: dict[tuple[str, str], list[dict[str, str]]] = {}
     for row in read_tsv(path):
-        by_mod.setdefault(row["modality"], []).append(row)
-    return by_mod
+        by_key.setdefault((row["modality"], grouping_of(row)), []).append(row)
+    return by_key
 
 
-def planned_jobs(datasets, models_by_mod, norms, off_aug_by_mod):
+def planned_jobs(datasets, models_by_key, norms, off_aug_by_key):
     jobs = []
     for ds in datasets:
         if (ds.get("preprocess") or "").strip() == "skip":
             continue
-        models = models_by_mod.get(ds["modality"], [])
-        aug_rows = off_aug_by_mod.get(ds["modality"], [{"off_aug": "", "AE_head_num": ""}])
+        key = (ds["modality"], grouping_of(ds))
+        models = models_by_key.get(key, [])
+        aug_rows = off_aug_by_key.get(key, [{"off_aug": "", "AE_head_num": ""}])
         for norm in norms:
             for model in models:
                 for aug in aug_rows:
@@ -131,6 +143,22 @@ def write_csv(path: Path, df: pd.DataFrame) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     df.to_csv(tmp, index=False)
     tmp.replace(path)
+
+
+def ensure_csv_fields(path: Path, fields: list[str]) -> None:
+    """Add any missing columns so later appends keep a stable header."""
+    if not path.exists():
+        return
+    df = pd.read_csv(path)
+    if df.empty and list(df.columns) == fields:
+        return
+    for col in fields:
+        if col not in df.columns:
+            df[col] = pd.NA
+    extras = [c for c in df.columns if c not in fields]
+    ordered = [c for c in fields if c in df.columns] + extras
+    if list(df.columns) != ordered:
+        write_csv(path, df[ordered])
 
 
 def append_rows(path: Path, rows: list[dict], fields: list[str]) -> None:
@@ -225,21 +253,22 @@ def main() -> None:
     cfg = read_kv_tsv(FIDELITY_TSV)
     datasets = read_tsv(DATASETS_TSV)
     norms = read_tsv(NORMS_TSV)
-    off_aug_by_mod = load_off_aug(OFF_AUG_TSV)
-    models_by_mod: dict[str, list[str]] = {}
+    off_aug_by_key = load_off_aug(OFF_AUG_TSV)
+    models_by_key: dict[tuple[str, str], list[str]] = {}
     for row in read_tsv(MODELS_TSV):
-        models_by_mod.setdefault(row["modality"], []).append(row["model"])
+        models_by_key.setdefault((row["modality"], grouping_of(row)), []).append(row["model"])
 
     filtered_dir = ROOT / cfg["filtered_dir"]
     generated_dir = ROOT / cfg["generated_dir"]
     n_draws = int(cfg["n_draws"])
     draw_seed_base = int(cfg["draw_seed_base"])
     skip_existing = as_bool(cfg.get("skip_existing", "true"))
+    ensure_csv_fields(FIDELITY_CSV, FIDELITY_FIELDS)
     coords_mirna = ROOT / cfg["coords_mirna"]
     if not coords_mirna.exists():
         raise SystemExit(f"missing miRNA coordinates: {coords_mirna}")
 
-    jobs = planned_jobs(datasets, models_by_mod, norms, off_aug_by_mod)
+    jobs = planned_jobs(datasets, models_by_key, norms, off_aug_by_key)
     done = load_done_keys(FIDELITY_CSV) if skip_existing else set()
     print(f"SEED             : {SEED}")
     print(f"Jobs             : {len(jobs)}")
@@ -285,12 +314,20 @@ def main() -> None:
             continue
 
         try:
+            ungrouped = grouping_of(ds) == "none"
             real_feat, real_groups = load_table(real_path)
             gen_feat, gen_groups = load_table(gen_path)
-            if real_groups is None or gen_groups is None:
+            if not ungrouped and (real_groups is None or gen_groups is None):
                 raise ValueError("both real and generated tables need a groups column")
 
-            umap_feat, umap_groups = stratified_sample(gen_feat, gen_groups, real_groups, SEED)
+            if ungrouped:
+                umap_feat, umap_groups = sample_to_n(
+                    gen_feat, gen_groups, len(real_feat), SEED
+                )
+            else:
+                umap_feat, umap_groups = stratified_sample(
+                    gen_feat, gen_groups, real_groups, SEED
+                )
             real_m, gen_m, _ = align_matrices(real_feat, umap_feat)
             umap_df = umap_coordinates(real_m, gen_m, real_groups, umap_groups, SEED)
             umap_df.insert(0, "off_aug", off_aug or "none")
@@ -300,39 +337,48 @@ def main() -> None:
             umap_df.insert(0, "dataset_id", dataset_id)
 
             py_rows = []
-            (ROOT / "data").mkdir(parents=True, exist_ok=True)
-            tmpdir = Path(tempfile.mkdtemp(prefix="fidelity_", dir=str(ROOT / "data")))
+            need_dana = not ungrouped
+            tmpdir = None
+            if need_dana:
+                (ROOT / "data").mkdir(parents=True, exist_ok=True)
+                tmpdir = Path(tempfile.mkdtemp(prefix="fidelity_", dir=str(ROOT / "data")))
             try:
                 r_jobs = []
                 for draw in range(1, n_draws + 1):
-                    samp_feat, samp_groups = stratified_sample(
-                        gen_feat, gen_groups, real_groups, draw_seed_base + draw
-                    )
+                    if ungrouped:
+                        samp_feat, samp_groups = sample_to_n(
+                            gen_feat, gen_groups, len(real_feat), draw_seed_base + draw
+                        )
+                    else:
+                        samp_feat, samp_groups = stratified_sample(
+                            gen_feat, gen_groups, real_groups, draw_seed_base + draw
+                        )
                     real_a, gen_a, _ = align_matrices(real_feat, samp_feat)
                     cari = cluster_cari(real_a, gen_a)
                     mads = mad_metrics(real_a, gen_a)
-                    gen_csv = tmpdir / f"gen_draw{draw}.csv"
-                    real_csv = tmpdir / "real.csv"
-                    if draw == 1:
-                        real_out = real_feat.copy()
-                        real_out["groups"] = real_groups.to_numpy()
-                        real_out.to_csv(real_csv, index=False)
-                    gen_out = samp_feat.copy()
-                    gen_out["groups"] = samp_groups.to_numpy()
-                    gen_out.to_csv(gen_csv, index=False)
-                    r_jobs.append(
-                        {
-                            "draw": draw,
-                            "real_csv": str(real_csv),
-                            "gen_csv": str(gen_csv),
-                            "coords_csv": str(coords_mirna) if ds["modality"] == "mirna" else "",
-                            "reverse_log": cfg["reverse_log"],
-                            "tzero": cfg["dana_tzero"],
-                            "tpoor": cfg["dana_tpoor"],
-                            "twell": cfg["dana_twell"],
-                            "failure": cfg["failure"],
-                        }
-                    )
+                    if need_dana:
+                        gen_csv = tmpdir / f"gen_draw{draw}.csv"
+                        real_csv = tmpdir / "real.csv"
+                        if draw == 1:
+                            real_out = real_feat.copy()
+                            real_out["groups"] = real_groups.to_numpy()
+                            real_out.to_csv(real_csv, index=False)
+                        gen_out = samp_feat.copy()
+                        gen_out["groups"] = samp_groups.to_numpy()
+                        gen_out.to_csv(gen_csv, index=False)
+                        r_jobs.append(
+                            {
+                                "draw": draw,
+                                "real_csv": str(real_csv),
+                                "gen_csv": str(gen_csv),
+                                "coords_csv": str(coords_mirna) if ds["modality"] == "mirna" else "",
+                                "reverse_log": cfg["reverse_log"],
+                                "tzero": cfg["dana_tzero"],
+                                "tpoor": cfg["dana_tpoor"],
+                                "twell": cfg["dana_twell"],
+                                "failure": cfg["failure"],
+                            }
+                        )
                     py_rows.append(
                         {
                             "dataset_id": dataset_id,
@@ -354,22 +400,25 @@ def main() -> None:
                         }
                     )
 
-                jobs_csv = tmpdir / "jobs.csv"
-                r_out = tmpdir / "dana_dea.csv"
-                pd.DataFrame(r_jobs).to_csv(jobs_csv, index=False)
-                try:
-                    r_df = run_dana_dea(jobs_csv, r_out)
-                    r_map = {int(r["draw"]): r for r in r_df.to_dict("records")} if not r_df.empty else {}
-                except Exception as exc:
-                    print(f"    DANA/DEA failed: {exc}", flush=True)
-                    r_map = {}
+                r_map = {}
+                if need_dana:
+                    jobs_csv = tmpdir / "jobs.csv"
+                    r_out = tmpdir / "dana_dea.csv"
+                    pd.DataFrame(r_jobs).to_csv(jobs_csv, index=False)
+                    try:
+                        r_df = run_dana_dea(jobs_csv, r_out)
+                        r_map = {int(r["draw"]): r for r in r_df.to_dict("records")} if not r_df.empty else {}
+                    except Exception as exc:
+                        print(f"    DANA/DEA failed: {exc}", flush=True)
+                        r_map = {}
                 for row in py_rows:
                     rec = r_map.get(int(row["draw"]), {})
                     row["cccpcc"] = rec.get("cccpcc", "")
                     row["ccc_log10_pvalue"] = rec.get("ccc_log10_pvalue", "")
                     row["ccc_log2_FC"] = rec.get("ccc_log2_FC", "")
             finally:
-                shutil.rmtree(tmpdir, ignore_errors=True)
+                if tmpdir is not None:
+                    shutil.rmtree(tmpdir, ignore_errors=True)
 
             append_rows(FIDELITY_CSV, py_rows, FIDELITY_FIELDS)
             umap_header = not UMAP_CSV.exists()

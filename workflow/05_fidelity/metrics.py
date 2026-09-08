@@ -95,6 +95,25 @@ def stratified_sample(
     )
 
 
+def sample_to_n(
+    gen_feat: pd.DataFrame,
+    gen_groups: pd.Series | None,
+    n: int,
+    seed: int,
+) -> tuple[pd.DataFrame, pd.Series | None]:
+    """Draw n generated rows without group stratification."""
+    rng = np.random.default_rng(seed)
+    n = min(int(n), len(gen_feat))
+    if n <= 0:
+        empty_g = None if gen_groups is None else gen_groups.iloc[0:0].reset_index(drop=True)
+        return gen_feat.iloc[0:0].reset_index(drop=True), empty_g
+    replace = len(gen_feat) < n
+    idx = rng.choice(len(gen_feat), size=n, replace=replace)
+    feat = gen_feat.iloc[idx].reset_index(drop=True)
+    groups = None if gen_groups is None else gen_groups.iloc[idx].reset_index(drop=True)
+    return feat, groups
+
+
 def cluster_cari(real: np.ndarray, gen: np.ndarray) -> float:
     """1 - |ARI(real/generated vs Ward clusters)|, matching Xinyi's cluster_eval."""
     gen = replace_zero_sd(real, gen)
@@ -122,16 +141,38 @@ def r_mad(x: np.ndarray) -> float:
     return 1.4826 * float(np.median(np.abs(x - np.median(x))))
 
 
+def medae(x: np.ndarray) -> float:
+    """Median absolute error: median_j |x_j|."""
+    x = np.asarray(x, dtype=float)
+    x = x[np.isfinite(x)]
+    if x.size == 0:
+        return float("nan")
+    return float(np.median(np.abs(x)))
+
+
 def mad_metrics(real: np.ndarray, gen: np.ndarray) -> dict[str, float]:
+    """Per-feature moment errors on the current (already log2) scale.
+
+    For each feature, q in {mean, SD, CV}:
+      Delta_j = q_j(generated) - q_j(real)
+      MedAE = median_j |Delta_j|
+      MAD   = 1.4826 * median_j |Delta_j - median(Delta)|   (R stats::mad)
+    """
     mu_r, mu_g = real.mean(axis=0), gen.mean(axis=0)
     sd_r, sd_g = real.std(axis=0, ddof=1), gen.std(axis=0, ddof=1)
     cv_r = sd_r / (mu_r + 1e-9)
     cv_g = sd_g / (mu_g + 1e-9)
+    d_mu = mu_g - mu_r
+    d_sd = sd_g - sd_r
+    d_cv = cv_g - cv_r
     return {
         "ccc_meandiff": round(lin_ccc(mu_r, mu_g), 4),
-        "mad_mean": round(r_mad(mu_g - mu_r), 6),
-        "mad_sd": round(r_mad(sd_g - sd_r), 6),
-        "mad_cv": round(r_mad(cv_g - cv_r), 6),
+        "mad_mean": round(r_mad(d_mu), 6),
+        "mad_sd": round(r_mad(d_sd), 6),
+        "mad_cv": round(r_mad(d_cv), 6),
+        "medae_mean": round(medae(d_mu), 6),
+        "medae_sd": round(medae(d_sd), 6),
+        "medae_cv": round(medae(d_cv), 6),
     }
 
 
