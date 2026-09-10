@@ -338,7 +338,6 @@ def main() -> None:
     filtered_dir = ROOT / cfg["filtered_dir"]
     generated_dir = ROOT / cfg["generated_dir"]
     cache_dir = ROOT / "data" / "processed" / "curves"
-    hnsc_id = cfg["hnsc_dataset_id"]
 
     jobs = planned_jobs(datasets, models_by_key, norms, off_aug_by_key)
     np.random.seed(SEED)
@@ -480,13 +479,6 @@ def main() -> None:
                     "seed": SEED,
                 }
             )
-
-    if CURVES_CSV.exists():
-        curves = pd.read_csv(CURVES_CSV)
-        hnsc = curves[curves["dataset_id"] == hnsc_id]
-        hnsc_path = ROOT / "results" / "curves_hnsc.csv"
-        hnsc.to_csv(hnsc_path, index=False)
-        print(f"HNSC extract     : {hnsc_path.relative_to(ROOT)} ({len(hnsc)} rows)")
 
     print(
         f"\ndone: {n_ok} ok, {n_skip} skipped exists, {n_miss} missing, {n_fail} failed; "

@@ -23,11 +23,11 @@ FIGURES = [
 ]
 
 # TODO: add the remaining data-driven figures as their source data lands in results/:
-#   cARI across the 24 miRNA cohorts        <- results/cari_mirna.csv
-#   quality evaluation for STAD             <- results/fidelity_stad.csv, results/umap_stad.csv
-#   HNSC learning curves                   <- results/curves_hnsc.csv (empty until HNSC is generated)
-#   cARI across the 5 RNA-seq cohorts       <- results/cari_rna.csv
-#   RNA-seq UMAP and MAD panels             <- results/fidelity_rna.csv, results/umap_rna.csv
+#   cARI across the 24 miRNA cohorts        <- results/fidelity.csv
+#   quality evaluation for STAD             <- results/fidelity.csv, results/umap.csv
+#   HNSC learning curves                   <- results/curves.csv (empty until HNSC is generated)
+#   cARI across the 5 RNA-seq cohorts       <- results/fidelity.csv
+#   RNA-seq UMAP and MAD panels             <- results/fidelity.csv, results/umap.csv
 
 
 def main() -> None:

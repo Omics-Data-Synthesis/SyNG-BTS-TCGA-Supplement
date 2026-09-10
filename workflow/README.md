@@ -16,8 +16,8 @@ group labels have been dropped, so the sample set has to be fixed first.
 | 02 | Define groups | `uv run workflow/02_define_groups/run.py` | `data/raw/`, `config/datasets.tsv`, `config/group_maps.tsv` | `data/processed/grouped/`, `results/group_selection.csv` |
 | 03 | Preprocess | `uv run workflow/03_preprocess/run.py` | `data/raw/`, `data/processed/grouped/`, `config/datasets.tsv`, `config/preprocess.tsv` | `data/processed/filtered/`, `results/marker_filtering.csv` |
 | 04 | Generate | `uv run workflow/04_generate/run.py` | `data/processed/`, generation config | `data/generated/` |
-| 05 | Fidelity | `uv run workflow/05_fidelity/run.py` | `data/processed/`, `data/generated/`, `config/mirna_coordinates.csv` | `results/fidelity_*.csv`, `results/umap_*.csv`, `results/cari_*.csv` |
-| 06 | SyntheSize | `uv run workflow/06_synthesize/run.py` | `data/processed/`, `data/generated/` | `results/curves_*.csv`, `results/curve_fits.csv` |
+| 05 | Fidelity | `uv run workflow/05_fidelity/run.py` | `data/processed/`, `data/generated/`, `config/mirna_coordinates.csv` | `results/fidelity.csv`, `results/umap.csv` |
+| 06 | SyntheSize | `uv run workflow/06_synthesize/run.py` | `data/processed/`, `data/generated/` | `results/curves.csv`, `results/curve_fits.csv` |
 | 07 | Figures and tables | `uv run workflow/07_figures/run.py` | `results/` | `figures/`, `results/tables/` |
 
 **Stage 05 should also write the UMAP coordinates.** cARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10_pvalue` / `ccc_log2_FC` are computed by `dana_dea.R` (needs `Rscript` on PATH) for binary grouped jobs. `grouping=none` RNA-seq skips DANA/DEA and SyntheSize (stage 06). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.

@@ -193,46 +193,6 @@ def run_dana_dea(jobs_csv: Path, out_csv: Path) -> pd.DataFrame:
     return pd.read_csv(out_csv)
 
 
-def extract_tables(fidelity: pd.DataFrame, umap: pd.DataFrame, cfg: dict[str, str]) -> None:
-    if fidelity.empty:
-        print("no fidelity rows yet; extracts not written")
-        return
-    results = ROOT / "results"
-    mirna = fidelity[fidelity["modality"] == "mirna"]
-    rna = fidelity[fidelity["modality"] == "rnaseq"]
-    write_csv(results / "fidelity_mirna.csv", mirna)
-    write_csv(results / "fidelity_rna.csv", rna)
-    stad_id = "STAD_prospective_collection"
-    write_csv(results / "fidelity_stad.csv", fidelity[fidelity["dataset_id"] == stad_id])
-
-    def cari_extract(df: pd.DataFrame, model: str, norm: str, off_aug: str) -> pd.DataFrame:
-        if df.empty:
-            return df
-        sub = df[(df["model"] == model) & (df["norm"] == norm) & (df["off_aug"] == off_aug)]
-        if sub.empty:
-            return sub
-        agg = (
-            sub.groupby(["dataset_id", "modality", "norm", "model", "off_aug"], as_index=False)
-            .agg(n_real=("n_real", "first"), cARI_mean=("cARI", "mean"), cARI_sd=("cARI", "std"), n_draws=("draw", "size"))
-        )
-        return agg
-
-    write_csv(
-        results / "cari_mirna.csv",
-        cari_extract(mirna, cfg["cari_mirna_model"], cfg["cari_mirna_norm"], cfg["cari_mirna_off_aug"]),
-    )
-    write_csv(
-        results / "cari_rna.csv",
-        cari_extract(rna, cfg["cari_rna_model"], cfg["cari_rna_norm"], cfg["cari_rna_off_aug"]),
-    )
-
-    if umap.empty:
-        return
-    write_csv(results / "umap_stad.csv", umap[umap["dataset_id"] == stad_id])
-    write_csv(results / "umap_rna.csv", umap[umap["modality"] == "rnaseq"])
-    write_csv(results / "umap_mirna.csv", umap[umap["modality"] == "mirna"])
-
-
 def already_done(done: set[tuple[str, str, str, str]], ds, norm, model, tag) -> bool:
     return (ds["dataset_id"], norm["label"], model, tag) in done
 
@@ -432,9 +392,6 @@ def main() -> None:
             print(f"    ERROR: {exc}", flush=True)
             append_rows(LOG_CSV, [{**log_base, "status": f"ERROR: {exc}"}], list(log_base) + ["status"])
 
-    fidelity = pd.read_csv(FIDELITY_CSV) if FIDELITY_CSV.exists() else pd.DataFrame()
-    umap = pd.read_csv(UMAP_CSV) if UMAP_CSV.exists() else pd.DataFrame()
-    extract_tables(fidelity, umap, cfg)
     print(
         f"\ndone: {n_ok} ok, {n_skip} skipped exists, {n_miss} missing, {n_fail} failed; "
         f"metrics → {FIDELITY_CSV.relative_to(ROOT)}"

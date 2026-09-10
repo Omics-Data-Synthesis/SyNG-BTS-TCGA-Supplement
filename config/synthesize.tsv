@@ -11,4 +11,3 @@ metrics	f1_score,accuracy,auc
 static_metric	f1_score
 plot_ylim_lo	0.4
 plot_ylim_hi	1.0
-hnsc_dataset_id	HNSC_anatomic_organ_subdivision

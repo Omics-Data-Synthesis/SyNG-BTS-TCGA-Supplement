@@ -88,7 +88,7 @@ Add each file together with the stage that reads it. Currently present: `tcga_co
 | `preprocess.tsv` | Marker-filtering paths and the auto-threshold binning parameters. Read by stage 03. |
 | `generate.tsv`, `generate_models.tsv`, `generate_norms.tsv`, `generate_train.tsv`, `generate_off_aug.tsv` | Shared generate() settings, per-(modality, grouping) CVAE/VAE lists, training schedules, RNA off_aug grid, and raw/TC/DESeq suffixes. Seed is `SEED` in `04_generate/run.py`. Read by stages 04–06. |
 | `mirna_coordinates.csv`, `fidelity.tsv` | miRBase-style genomic coordinates for DANA (dots in `name` become hyphens at load) and fidelity draw / threshold settings. Seed is `SEED` in `05_fidelity/run.py`. Read by stage 05. |
-| `synthesize.tsv` | SyntheSize draw count, sample-size grid, classifiers, and the HNSC dataset id. Seed is `SEED` in `06_synthesize/run.py`. Read by stage 06. |
+| `synthesize.tsv` | SyntheSize draw count, sample-size grid, and classifiers. Seed is `SEED` in `06_synthesize/run.py`. Read by stage 06. |
 
 Formats: Ideally use **TSV** when there is one row per cohort, something like **YAML** for nested or optional parameters.
 
@@ -118,11 +118,11 @@ One row per published output. Example structure:
 |---|---|---|
 | Overall workflow | Hand-drawn schematic, no code | — |
 | cVAE architecture | `07_figures/run.py` | — (schematic of `syng_bts.helper_models.CVAE`) |
-| ARI across 24 miRNA cohorts | `07_figures/run.py` | `results/cari_mirna.csv` |
-| Quality evaluation for STAD | `07_figures/run.py` | `results/fidelity_stad.csv`, `results/umap_stad.csv` |
-| HNSC learning curves | `07_figures/run.py` | `results/curves_hnsc.csv` |
-| cARI across 5 RNA-seq cohorts | `07_figures/run.py` | `results/cari_rna.csv` |
-| RNA-seq UMAP and MAD panels | `07_figures/run.py` | `results/fidelity_rna.csv`, `results/umap_rna.csv` |
+| ARI across 24 miRNA cohorts | `07_figures/run.py` | `results/fidelity.csv` |
+| Quality evaluation for STAD | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
+| HNSC learning curves | `07_figures/run.py` | `results/curves.csv` |
+| cARI across 5 RNA-seq cohorts | `07_figures/run.py` | `results/fidelity.csv` |
+| RNA-seq UMAP and MAD panels | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
 | Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
 
