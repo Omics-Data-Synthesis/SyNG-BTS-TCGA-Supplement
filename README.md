@@ -72,6 +72,7 @@ Rscript -e 'renv::install("bioc::DESeq2")'         # Bioconductor package
 | `data/` | Local workspace. Contents are gitignored. Downloads and preprocessing results go here, but should not be committed. |
 | `results/` | Small tidy CSVs, including the source data behind every manuscript figure and table. Committed. |
 | `figures/` | Final manuscript figures, built by workflow stage 07. Committed. |
+| `website/` | Interactive supplementary learning-curve site. Front-end plus precomputed `plots/**/data.json` and `manifest.json`, built by stage 08. Committed. GitHub Actions publishes this directory to GitHub Pages. |
 
 
 
@@ -84,7 +85,7 @@ Add each file together with the stage that reads it. Currently present: `tcga_co
 | File | Holds |
 |---|---|
 | `tcga_cohorts.tsv`, `tcga_download.yml` | TCGA query, source version, and the cohort list. Read by stage 01. |
-| `datasets.tsv`, `group_maps.tsv` | Per dataset: grouping (`binary` or `none`), the clinical variable, Biotab column, recode rule, and published sample/marker counts. Read by stages 02 and 03. |
+| `datasets.tsv`, `group_maps.tsv` | Per dataset: grouping (`binary` or `none`), the clinical variable, Biotab column, recode rule, and published sample/marker counts. Read by stages 02, 03, and 08. |
 | `preprocess.tsv` | Marker-filtering paths and the auto-threshold binning parameters. Read by stage 03. |
 | `generate.tsv`, `generate_models.tsv`, `generate_norms.tsv`, `generate_train.tsv`, `generate_off_aug.tsv` | Shared generate() settings, per-(modality, grouping) CVAE/VAE lists, training schedules, RNA off_aug grid, and raw/TC/DESeq suffixes. Seed is `SEED` in `04_generate/run.py`. Read by stages 04–06. |
 | `mirna_coordinates.csv`, `fidelity.tsv` | miRBase-style genomic coordinates for DANA (dots in `name` become hyphens at load) and fidelity draw / threshold settings. Seed is `SEED` in `05_fidelity/run.py`. Read by stage 05. |
@@ -98,7 +99,7 @@ Formats: Ideally use **TSV** when there is one row per cohort, something like **
 1. **One entry point per stage.** `workflow/*/run.R` or `run.py`, taking no required arguments. Everything else in that directory is its own helper code.
 2. **`src/` is for shared code only.** Code used by exactly one stage stays in that stage's directory.
 3. **Cohort lists and per-cohort settings come from `config/`.** Never hardcode a cohort name or a filtering cutoff in a script.
-4. **Write only into `data/`, `results/`, or `figures/`.**
+4. **Write only into `data/`, `results/`, `figures/`, or `website/`.**
 
 
 ### Seeds
@@ -125,6 +126,23 @@ One row per published output. Example structure:
 | RNA-seq UMAP and MAD panels | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
 | Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
+| Interactive learning curves | `08_website/run.py` | `data/processed/curves/**/metrics_*.csv` → `website/plots/**/data.json` |
+
+
+## Interactive website
+
+Stage 08 writes compact per-configuration JSON under `website/plots/` and an index at `website/manifest.json`. The site is static (Plotly from a CDN). Preview locally over HTTP, because `fetch` does not work from `file://`:
+
+```bash
+python3 -m http.server --directory website 8000
+# then open http://localhost:8000
+```
+
+GitHub Pages is deployed by `.github/workflows/pages.yml` from the `website/` directory (not `/docs`). Enable it once under **Settings → Pages → Source: GitHub Actions**. The published URL is `https://Omics-Data-Synthesis.github.io/SyNG-BTS-TCGA-Supplement/`.
+
+Default stage 08 is incremental: it overwrites only configurations present in `data/processed/curves/` and leaves bootstrap JSON for cohorts that have not been re-run. Use `--replace` to wipe `website/plots/` first, or `--manifest-only` to rebuild the index without reading the cache.
+
+The website refits each curve with a weighted inverse power-law (matching `syng_bts.synthesize._fit_curve`). It does not read stage 06 `points.csv` / `fits.csv` or `results/curves.csv`.
 
 
 ## Data
