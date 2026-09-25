@@ -17,7 +17,7 @@ group labels have been dropped, so the sample set has to be fixed first.
 | 03 | Preprocess | `uv run workflow/03_preprocess/run.py` | `data/raw/`, `data/processed/grouped/`, `config/datasets.tsv`, `config/preprocess.tsv` | `data/processed/filtered/`, `results/marker_filtering.csv` |
 | 04 | Generate | `uv run workflow/04_generate/run.py` | `data/processed/`, generation config | `data/generated/` |
 | 05 | Fidelity | `uv run workflow/05_fidelity/run.py` | `data/processed/`, `data/generated/`, `config/mirna_coordinates.csv` | `results/fidelity.csv`, `results/umap.csv` |
-| 06 | SyntheSize | `uv run workflow/06_synthesize/run.py` | `data/processed/`, `data/generated/` | `results/curves.csv`, `results/curve_fits.csv`, `data/processed/curves/` |
+| 06 | SyntheSize | `uv run workflow/06_synthesize/run.py [--workers N]` | `data/processed/`, `data/generated/` | `results/curves.csv`, `results/curve_fits.csv`, `data/processed/curves/` |
 | 07 | Figures and tables | `uv run workflow/07_figures/run.py` | `results/` | `figures/`, `results/tables/` |
 | 08 | Website | `uv run workflow/08_website/run.py` | `data/processed/curves/`, `config/datasets.tsv` | `website/plots/`, `website/manifest.json` |
 
@@ -41,7 +41,7 @@ re-run is kept. Preview with `python3 -m http.server --directory website 8000`.
 
 Every stage directory should have a `run.R` or `run.py`, which:
 
-- takes no additional arguments,
+- takes no required arguments; optional arguments control runtime behavior only,
 - reads its parameters from `config/`. So no constants in its own body, except the seed;
 - declares a fixed `SEED` for every stochastic call,
 - takes its cohort list and per-cohort settings from `config/`,
