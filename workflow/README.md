@@ -24,8 +24,11 @@ group labels have been dropped, so the sample set has to be fixed first.
 **Stage 05 should also write the UMAP coordinates.** cARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10_pvalue` / `ccc_log2_FC` are computed by `dana_dea.R` (needs `Rscript` on PATH) for binary grouped jobs. `grouping=none` RNA-seq skips DANA/DEA and SyntheSize (stage 06). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.
 
 Stage 07 keeps one `figure_*.py` module per figure, each exposing `main()`, registered in the
-`FIGURES` list in `run.py`. `figure_cvae_architecture.py` is the worked example: it is a
-schematic of `syng_bts.helper_models.CVAE`, so it reads nothing from `results/`.
+`FIGURES` list in `run.py`. `figure_cvae_architecture.py` is a schematic of
+`syng_bts.helper_models.CVAE`, so it reads nothing from `results/`. The fidelity figures
+stay in `ari_figure_code.R`, `fidelity_RNA_code.R`, and `fidelity_miRNA_code.R`.
+`figure_fidelity.py` runs those scripts, and calls the miRNA script once per `mirna` row
+in `config/datasets.tsv`. `uv run workflow/07_figures/run.py` needs `Rscript` and `renv::restore()`.
 
 Figure files are named for what they show (`cvae_architecture.pdf`), never for a manuscript
 number. The numbering is still changing, and a stale `fig1.pdf` is worse than no name at all.
