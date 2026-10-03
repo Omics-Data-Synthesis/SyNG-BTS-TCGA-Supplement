@@ -86,41 +86,53 @@
   }
 
   function render(payload) {
+    if (!payload.provenance || payload.provenance.syng_bts_version !== "3.6.0" ||
+        payload.provenance.fitting_api !== "syng_bts.fit_sample_sizes") {
+      fail("These learning-curve results need to be rebuilt.");
+      return;
+    }
     var clfSeries = payload.series && payload.series[classifier];
     var series = clfSeries && clfSeries[metric];
-    if (!series || !series.real || !series.generated) {
+    if (!series || (!series.real && !series.generated)) {
       fail("No data for classifier=" + classifier + ", metric=" + metric + ".");
       return;
     }
 
     var axisRefs = { real: { x: "x", y: "y" }, generated: { x: "x2", y: "y2" } };
     var traces = [];
+    var notices = [];
     ["real", "generated"].forEach(function (source) {
       var s = series[source];
       var color = COLORS[source];
       var refs = axisRefs[source];
       var label = PANEL_LABEL[source];
+      if (!s) {
+        notices.push(label + ": no observations.");
+        return;
+      }
+      if (s.fit_status !== "ok") notices.push(label + ": fit unavailable. " + s.message);
+      else if (s.interval_status !== "ok") notices.push(label + ": confidence band unavailable. " + s.message);
       // The confidence band is only present when the fit covariance was usable.
-      if (s.fit_n && s.fit_lo) traces.push(bandTrace(s, color, refs));
-      if (s.fit_n) traces.push(fitTrace(s, color, refs, label));
+      if (s.interval_status === "ok" && s.fit_n && s.fit_lo) traces.push(bandTrace(s, color, refs));
+      if (s.fit_status === "ok" && s.fit_n) traces.push(fitTrace(s, color, refs, label));
       traces.push(observedTrace(s, color, refs, label));
     });
 
-    // Fixed y range shared by both panels (same limits as the reference PNGs).
-    var yRange = [0.4, 1.0];
+    document.getElementById("status").textContent = notices.join(" ");
+    var yRange = payload.ylim;
 
     var layout = {
-      margin: { l: 58, r: 14, t: 40, b: 96 },
+      margin: { l: 58, r: 14, t: 40, b: 110 },
       showlegend: true,
-      legend: { orientation: "h", yanchor: "top", y: -0.19, xanchor: "center", x: 0.5 },
+      legend: { orientation: "h", yanchor: "top", y: -0.30, xanchor: "center", x: 0.5 },
       xaxis: {
         domain: X_DOMAINS.real,
-        title: { text: "Sample size" },
+        title: { text: "Candidate subset size" },
         zeroline: false,
       },
       xaxis2: {
         domain: X_DOMAINS.generated,
-        title: { text: "Sample size" },
+        title: { text: "Candidate subset size" },
         zeroline: false,
       },
       yaxis: { title: { text: metric }, range: yRange, zeroline: false },

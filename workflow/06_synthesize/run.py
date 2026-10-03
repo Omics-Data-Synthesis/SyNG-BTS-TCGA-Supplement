@@ -3,10 +3,10 @@
 # For every generate() combo that has a generated.csv, runs
 # syng_bts.evaluate_sample_sizes on real (stage 03) and generated (stage 04)
 # tables. Real metrics are computed once per (dataset, norm) and reused.
-# IPLF fits are stored so stage 07 can draw the curves without refitting.
+# Public package fits are archived for stages 07 and 08 without refitting.
 #
 # Processed data is already log2(x+1), so apply_log comes from
-# config/synthesize.tsv (false). Skip-if-missing / skip-if-exists match stage 04.
+# config/synthesize.tsv (false). Only completed, compatible caches are reused.
 # grouping=none datasets are skipped: classifiers need a binary label.
 #
 # Run from the repository root:
@@ -18,9 +18,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import multiprocessing
 import os
 import shutil
+import sys
 import time
 import traceback
 import warnings
@@ -58,9 +60,14 @@ warnings.filterwarnings(
 
 import numpy as np
 import pandas as pd
-from scipy.optimize import approx_fprime, curve_fit
-from scipy.stats import norm
-from syng_bts import evaluate_sample_sizes
+from syng_bts import __version__, evaluate_sample_sizes, fit_sample_sizes
+
+sys.path.insert(0, str(ROOT / "workflow"))
+from synthesize_results import (
+    ARCHIVE_NAME, PACKAGE_VERSION, POINT_COLUMNS, FIT_COLUMNS,
+    cache_valid, file_hash, fit_row, input_identity, point_rows, provenance,
+    write_completion, write_json,
+)
 
 SEED = 42
 
@@ -191,107 +198,35 @@ def make_sample_sizes(groups: pd.Series, n_sizes: int, min_class: int) -> list[i
     return sorted({feasible_sizes[int(round(i))] for i in idx})
 
 
-def power_law(x, a, b, c):
-    return (1 - a) - b * (x ** c)
-
-
-def fit_iplf(ns: np.ndarray, ys: np.ndarray):
-    try:
-        popt, pcov = curve_fit(power_law, ns, ys, p0=[0, 1, -0.5], maxfev=50000)
-        return popt, pcov, True
-    except (RuntimeError, ValueError):
-        return None, None, False
-
-
-def predict_with_ci(popt, pcov, xs: np.ndarray):
-    pred = power_law(xs, *popt)
-    eps = np.sqrt(np.finfo(float).eps)
-    jac = np.empty((len(xs), len(popt)))
-    for i, x in enumerate(xs):
-        jac[i] = approx_fprime([x], lambda z: power_law(z[0], *popt), eps)
-    var = np.sum((jac @ pcov) * jac, axis=1)
-    sd = np.sqrt(np.clip(var, 0, None))
-    t = norm.ppf(0.975)
-    return pred, pred - t * sd, pred + t * sd
-
-
-def mean_table(metrics: pd.DataFrame, method: str, metric: str) -> pd.DataFrame:
-    sub = metrics[metrics["method"] == method]
-    agg = (
-        sub.groupby("total_size")
-        .agg(observed_mean=(metric, "mean"), observed_std=(metric, "std"), n_draws=(metric, "size"))
-        .reset_index()
-        .rename(columns={"total_size": "n"})
-        .sort_values("n")
-    )
-    agg["observed_std"] = agg["observed_std"].fillna(0.0)
-    return agg
+def build_fits(metrics_real, metrics_gen, keys, methods, metrics):
+    """Fit once in the package; archive its default (observed-size) grid."""
+    records = []
+    for source, table in (("real", metrics_real), ("generated", metrics_gen)):
+        if table is None or table.empty:
+            continue
+        table = table[table["method"].isin(methods)]
+        if table.empty:
+            continue
+        for metric in metrics:
+            for fit in fit_sample_sizes(table, metric_name=metric).values():
+                payload = fit.to_dict()
+                # The study's "model" is the generator, not the learning-curve equation.
+                payload["curve_model"] = payload.pop("model")
+                records.append({**keys, "source": source, **payload})
+    return records
 
 
 def build_points_and_fits(metrics_real, metrics_gen, keys, methods, metrics):
-    point_rows, fit_rows = [], []
-    sources = [("real", metrics_real), ("generated", metrics_gen)]
-    for source, table in sources:
-        if table is None or table.empty:
-            continue
-        for method in methods:
-            if method not in set(table["method"]):
-                continue
-            for metric in metrics:
-                mt = mean_table(table, method, metric)
-                if mt.empty:
-                    continue
-                ns = mt["n"].to_numpy(dtype=float)
-                ys = mt["observed_mean"].to_numpy(dtype=float)
-                for _, r in mt.iterrows():
-                    point_rows.append(
-                        {
-                            **keys,
-                            "source": source,
-                            "method": method,
-                            "metric": metric,
-                            "kind": "observed",
-                            "n": int(r["n"]),
-                            "value": float(r["observed_mean"]),
-                            "observed_std": float(r["observed_std"]),
-                            "ci_low": np.nan,
-                            "ci_high": np.nan,
-                            "n_draws": int(r["n_draws"]),
-                        }
-                    )
-                popt, pcov, ok = fit_iplf(ns, ys) if len(ns) >= 3 else (None, None, False)
-                fit_rows.append(
-                    {
-                        **keys,
-                        "source": source,
-                        "method": method,
-                        "metric": metric,
-                        "fit_ok": ok,
-                        "a": float(popt[0]) if ok else np.nan,
-                        "b": float(popt[1]) if ok else np.nan,
-                        "c": float(popt[2]) if ok else np.nan,
-                    }
-                )
-                if ok:
-                    grid = np.linspace(ns.min(), ns.max(), 100)
-                    pred, lo, hi = predict_with_ci(popt, pcov, grid)
-                    for xg, pg, lg, hg in zip(grid, pred, lo, hi):
-                        point_rows.append(
-                            {
-                                **keys,
-                                "source": source,
-                                "method": method,
-                                "metric": metric,
-                                "kind": "fitted",
-                                "n": float(xg),
-                                "value": float(pg),
-                                "observed_std": np.nan,
-                                "ci_low": float(lg),
-                                "ci_high": float(hg),
-                                "n_draws": np.nan,
-                            }
-                        )
-    return pd.DataFrame(point_rows), pd.DataFrame(fit_rows)
+    """Tabular views of the same package results (also useful interactively)."""
+    records = build_fits(metrics_real, metrics_gen, keys, methods, metrics)
+    return tables_from_fits(records)
+
+
+def tables_from_fits(records):
+    return (
+        pd.DataFrame([row for fit in records for row in point_rows(fit)], columns=POINT_COLUMNS),
+        pd.DataFrame([fit_row(fit) for fit in records], columns=FIT_COLUMNS),
+    )
 
 
 def write_df(path: Path, df: pd.DataFrame) -> None:
@@ -380,15 +315,21 @@ def run_group(group, worker_cfg):
         model_dir = cache_dir / dataset_id / norm["label"] / tag / model
         points_path = model_dir / "points.csv"
 
-        if skip_existing and points_path.exists():
-            records.append(
-                JobResult(index, "skip", label, "SKIPPED (exists)", "cached", keys=keys)
-            )
+        completion_path = model_dir / "complete.json"
+        gen_path = generated_dir / dataset_id / norm["label"] / model / tag / "generated.csv"
+        real_path = filtered_dir / f"{dataset_id}{norm['suffix']}"
+        identity = dict(worker_cfg["provenance"], keys=keys,
+                        real_input=input_identity(real_path), generated_input=input_identity(gen_path))
+        required = {"points.csv", "fits.csv", "fits.json", "metrics_generated.csv"}
+        if skip_existing and cache_valid(completion_path, identity, required):
+            records.append(JobResult(index, "skip", label, "SKIPPED (validated)", "cached", keys=keys))
             continue
 
-        gen_path = generated_dir / dataset_id / norm["label"] / model / tag / "generated.csv"
+        # Remove only this job's obsolete derived artifacts before a retry.
+        for name in ("complete.json", "points.csv", "fits.csv", "fits.json", "metrics_generated.csv"):
+            (model_dir / name).unlink(missing_ok=True)
         if not gen_path.exists():
-            records.append(JobResult(index, "missing", label))
+            records.append(JobResult(index, "missing", label, keys=keys))
             continue
 
         real_key = (dataset_id, norm["label"])
@@ -398,7 +339,13 @@ def run_group(group, worker_cfg):
             if real_key not in real_cache:
                 real_csv = cache_dir / dataset_id / norm["label"] / "metrics_real.csv"
                 real_path = filtered_dir / f"{dataset_id}{norm['suffix']}"
-                if skip_existing and real_csv.exists():
+                real_completion = real_csv.with_suffix(".json")
+                real_identity = dict(worker_cfg["provenance"], real_input=input_identity(real_path))
+                reuse_real = skip_existing and cache_valid(real_completion, real_identity, {real_csv.name})
+                if not reuse_real:
+                    real_csv.unlink(missing_ok=True)
+                    real_completion.unlink(missing_ok=True)
+                if reuse_real:
                     real_cache[real_key] = pd.read_csv(real_csv)
                     real_status[real_key] = "cached"
                 elif not real_path.exists():
@@ -426,6 +373,7 @@ def run_group(group, worker_cfg):
                                 verbose="silent",
                             )
                             write_df(real_csv, metrics_real)
+                            write_completion(real_completion, real_identity, [real_csv])
                             real_cache[real_key] = metrics_real
                             real_status[real_key] = "ok"
 
@@ -452,16 +400,18 @@ def run_group(group, worker_cfg):
                     write_df(model_dir / "metrics_generated.csv", metrics_gen)
                     status = "ok"
 
-            points, fits = build_points_and_fits(
-                real_cache.get(real_key), metrics_gen, keys, methods, metric_names
-            )
-            model_dir.mkdir(parents=True, exist_ok=True)
-            if not points.empty:
-                write_df(points_path, points)
-            if not fits.empty:
-                write_df(model_dir / "fits.csv", fits)
+            numerical = build_fits(real_cache.get(real_key), metrics_gen, keys, methods, metric_names)
+            points, fits = tables_from_fits(numerical)
+            write_df(points_path, points)
+            write_df(model_dir / "fits.csv", fits)
+            write_json(model_dir / "fits.json", numerical)
             if status == "ok" and real_cache.get(real_key) is None:
                 status = "ok_generated_only"
+            files = [points_path, model_dir / "fits.csv", model_dir / "fits.json"]
+            if metrics_gen is not None:
+                files.append(model_dir / "metrics_generated.csv")
+            write_completion(completion_path, identity, files, status=status,
+                             real_status=real_status.get(real_key, ""))
             secs = round(time.time() - t0, 1)
             records.append(
                 JobResult(
@@ -470,6 +420,8 @@ def run_group(group, worker_cfg):
                 )
             )
         except Exception as exc:
+            for name in ("complete.json", "points.csv", "fits.csv", "fits.json", "metrics_generated.csv"):
+                (model_dir / name).unlink(missing_ok=True)
             secs = round(time.time() - t0, 1)
             records.append(
                 JobResult(
@@ -497,38 +449,39 @@ def completed_groups(groups, worker_cfg, workers):
             yield future.result()
 
 
-def aggregate_job_files(jobs, cache_dir, filename, destination):
-    """Rebuild an aggregate in plan order without loading it all into memory."""
-    sources = []
-    for ds, norm, model, aug in jobs:
-        off_aug = as_optional_str(aug.get("off_aug", ""))
-        ae_head_raw = (aug.get("AE_head_num") or "").strip()
-        ae_head_num = int(ae_head_raw) if ae_head_raw else None
-        source = (
-            cache_dir
-            / ds["dataset_id"]
-            / norm["label"]
-            / off_aug_tag(off_aug, ae_head_num)
-            / model
-            / filename
-        )
-        if source.exists():
-            sources.append(source)
+def job_directory(job, cache_dir):
+    ds, norm, model, aug = job
+    head = (aug.get("AE_head_num") or "").strip()
+    tag = off_aug_tag(as_optional_str(aug.get("off_aug", "")), int(head) if head else None)
+    return cache_dir / ds["dataset_id"] / norm["label"] / tag / model
 
-    if not sources:
-        return 0
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    tmp = destination.with_suffix(destination.suffix + ".tmp")
-    # Workers never append to shared files; the parent publishes one atomic rebuild.
-    with tmp.open("w", newline="") as out:
-        for source_index, source in enumerate(sources):
-            with source.open(newline="") as src:
-                if source_index:
+def publish_results(jobs, records, cache_dir, producing):
+    """Publish only this invocation's completed jobs; the JSON archive is last."""
+    valid = {r.index for r in records if r.category in {"ok", "skip"}}
+    directories = [job_directory(job, cache_dir) for i, job in enumerate(jobs, 1) if i in valid]
+    numerical, completions = [], []
+    for directory in directories:
+        completion = json.loads((directory / "complete.json").read_text())
+        if not cache_valid(directory / "complete.json", completion["identity"], {"points.csv", "fits.csv", "fits.json"}):
+            raise ValueError(f"Incomplete job: {directory}")
+        numerical.extend(json.loads((directory / "fits.json").read_text()))
+        completions.append(completion)
+    for filename, destination, columns in (("points.csv", CURVES_CSV, POINT_COLUMNS),
+                                           ("fits.csv", FITS_CSV, FIT_COLUMNS)):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        tmp = destination.with_suffix(".csv.tmp")
+        with tmp.open("w", newline="") as out:
+            csv.writer(out).writerow(columns)
+            for directory in directories:
+                with (directory / filename).open(newline="") as src:
                     next(src, None)
-                shutil.copyfileobj(src, out)
-    tmp.replace(destination)
-    return len(sources)
+                    shutil.copyfileobj(src, out)
+        tmp.replace(destination)
+    write_json(CURVES_CSV.parent / ARCHIVE_NAME, dict(
+        provenance=producing, jobs=completions, counts=dict(Counter(r.category for r in records)),
+        tables={p.name: file_hash(p) for p in (CURVES_CSV, FITS_CSV)}, fits=numerical,
+    ))
 
 
 def parse_args():
@@ -547,6 +500,8 @@ def parse_args():
 
 def main() -> None:
     args = parse_args()
+    if __version__ != PACKAGE_VERSION:
+        raise SystemExit(f"Expected syng-bts=={PACKAGE_VERSION}, installed {__version__}; run uv sync --locked")
     if not DATASETS_TSV.exists():
         raise SystemExit("config/datasets.tsv not found; run from the repository root")
 
@@ -578,8 +533,13 @@ def main() -> None:
     print(f"apply_log        : {apply_log}")
     print(f"workers          : {args.workers}\n", flush=True)
 
+    producing = provenance(ROOT, SEED)
+    # An interrupted/failed run cannot leave an apparently completed old aggregate.
+    for path in (CURVES_CSV, FITS_CSV, CURVES_CSV.parent / ARCHIVE_NAME):
+        path.unlink(missing_ok=True)
     groups = group_jobs(jobs)
     worker_cfg = {
+        "provenance": producing,
         "methods": methods,
         "metric_names": metric_names,
         "n_draws": n_draws,
@@ -604,7 +564,7 @@ def main() -> None:
                 detail = f"{record.status}  ({record.seconds}s)"
             else:
                 detail = {
-                    "skip": "skipped (exists)",
+                    "skip": "skipped (validated)",
                     "missing": "skipped (generated missing)",
                 }.get(category, record.status)
             print(
@@ -629,11 +589,11 @@ def main() -> None:
                 }
             )
 
-    aggregate_job_files(jobs, cache_dir, "points.csv", CURVES_CSV)
-    aggregate_job_files(jobs, cache_dir, "fits.csv", FITS_CSV)
+    if not counts["fail"]:
+        publish_results(jobs, records, cache_dir, producing)
 
     print(
-        f"\ndone: {counts['ok']} ok, {counts['skip']} skipped exists, "
+        f"\ndone: {counts['ok']} ok, {counts['skip']} skipped validated, "
         f"{counts['missing']} missing, {counts['fail']} failed; "
         f"curves → {CURVES_CSV.relative_to(ROOT)}"
     )

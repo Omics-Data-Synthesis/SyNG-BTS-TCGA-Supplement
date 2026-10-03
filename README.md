@@ -122,10 +122,10 @@ One row per published output. Example structure:
 | Data-source separation, miRNA and selected RNA | `07_figures/run.py` | `results/fidelity.csv` |
 | miRNA fidelity, one figure per cohort | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
 | RNA-seq selected fidelity and UMAP | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
-| SyntheSize learning curves | `07_figures/run.py` | `results/curves.csv` |
+| SyntheSize learning curves | `07_figures/figure_learning_curves.py` | `results/learning_curve_fits.json` |
 | Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
-| Interactive learning curves | `08_website/run.py` | `data/processed/curves/**/metrics_*.csv` → `website/plots/**/data.json` |
+| Interactive learning curves | `08_website/run.py` | `results/learning_curve_fits.json` → `website/plots/**/data.json` |
 
 
 ## Interactive website
@@ -133,15 +133,23 @@ One row per published output. Example structure:
 Stage 08 writes compact per-configuration JSON under `website/plots/` and an index at `website/manifest.json`. The site is static (Plotly from a CDN). Preview locally over HTTP, because `fetch` does not work from `file://`:
 
 ```bash
-python3 -m http.server --directory website 8000
+uv run --locked python -m http.server --directory website 8000
 # then open http://localhost:8000
 ```
 
-GitHub Pages is deployed by `.github/workflows/pages.yml` from the `website/` directory (not `/docs`). Enable it once under **Settings → Pages → Source: GitHub Actions**. The published URL is `https://Omics-Data-Synthesis.github.io/SyNG-BTS-TCGA-Supplement/`.
+GitHub Pages deployment is configured in `.github/workflows/pages.yml` from the `website/` directory (not `/docs`). Enable it once under **Settings → Pages → Source: GitHub Actions**. After deployment, the expected URL is `https://Omics-Data-Synthesis.github.io/SyNG-BTS-TCGA-Supplement/`.
 
-Default stage 08 is incremental: it overwrites only configurations present in `data/processed/curves/` and leaves bootstrap JSON for cohorts that have not been re-run. Use `--replace` to wipe `website/plots/` first, or `--manifest-only` to rebuild the index without reading the cache.
+Stage 06 uses the public `syng_bts.fit_sample_sizes` API from the pinned PyPI
+release **3.6.0**. Stages 07 and 08 consume its archived numerical results; neither
+aggregates metrics or fits curves. See [workflow/SyntheSize.md](workflow/SyntheSize.md)
+for the exports, cache rules and manual rerun commands.
 
-The website refits each curve with a weighted inverse power-law (matching `syng_bts.synthesize._fit_curve`). It does not read stage 06 `points.csv` / `fits.csv` or `results/curves.csv`.
+Stage 08 replaces the complete generated plot tree. `--replace` remains accepted
+and has the same behavior as the default. `--manifest-only` validates existing
+JSON and rebuilds the index using only the Python standard library, as required
+by Pages CI. Historical JSON without current fitting provenance is rejected.
+An empty plot tree produces an explicit awaiting-rerun page. Local previews do
+not verify GitHub Pages deployment.
 
 
 ## Data

@@ -878,7 +878,7 @@ wheels = [
 
 [[package]]
 name = "syng-bts"
-version = "3.5.0"
+version = "3.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h5py" },
@@ -894,9 +894,9 @@ dependencies = [
     { name = "umap-learn" },
     { name = "xgboost" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f3/61/ed261fada70fc3b71404562769d1a571637e6190ddaa07d3e9aba8306722/syng_bts-3.5.0.tar.gz", hash = "sha256:6bb0d392855545ac12f1270e6918f797f06fcd45f9aee6517df65711dec5bced", size = 5452116, upload-time = "2026-07-24T13:52:43.03Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/62/3f606dea6f432bded8ac9de5808d24ffeb4675b908dbbbe5414442cba3eb/syng_bts-3.6.0.tar.gz", hash = "sha256:689d856b78fa854965bbd4109efe6091fb4932294a0746ebc632cc80b9b9942a", size = 5462079, upload-time = "2026-10-03T12:28:01.871Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/90/70d64137a677a3298ab9527df3a4fb7a55cc5b7c49f51f7455aede5570fb/syng_bts-3.5.0-py3-none-any.whl", hash = "sha256:925c32d377f5616392809fd0690c259a885da706fdd9916bbd68f481193c67bd", size = 5416207, upload-time = "2026-07-24T13:52:40.904Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/2c/8acc37bb4c60a8c7080aff6fd2e07ea5d871eb151cf0be46d018afb6c396/syng_bts-3.6.0-py3-none-any.whl", hash = "sha256:fd1301acf381f9c1eface249411d70d9452f953ff58efe8f10f15ed486dccfcd", size = 5418615, upload-time = "2026-10-03T12:27:56.604Z" },
 ]
 
 [[package]]
@@ -919,7 +919,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=1.23,<2.5" },
     { name = "pandas", specifier = ">=1.5" },
     { name = "scipy", specifier = ">=1.10" },
-    { name = "syng-bts", specifier = "==3.5.0" },
+    { name = "syng-bts", specifier = "==3.6.0" },
 ]
 
 [[package]]

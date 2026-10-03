@@ -12,12 +12,16 @@ from __future__ import annotations
 
 import csv
 import json
+import math
+import sys
 import re
 from pathlib import Path
 
 from dataset_keys import split_dataset_id
 
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO / "workflow"))
+from synthesize_results import provenance, validate_provenance, write_json
 WEBSITE = REPO / "website"
 PLOTS_ROOT = WEBSITE / "plots"
 PLOT_FILENAME = "data.json"
@@ -84,10 +88,40 @@ def order_values(key: str, values: set[str]) -> list[str]:
     return sorted(vals)
 
 
-def build_manifest() -> dict:
-    if not PLOTS_ROOT.is_dir():
-        raise SystemExit(f"Plots root not found: {PLOTS_ROOT}")
+def validate_payload(payload: dict) -> None:
+    validate_provenance(payload.get("provenance"), REPO)
+    for classifier in payload["classifiers"]:
+        for metric in payload["metrics"]:
+            sources = payload["series"][classifier][metric]
+            for source in ("real", "generated"):
+                entry = sources[source]
+                if entry is None:
+                    continue
+                if entry["fit_status"] not in {"ok", "failed"} or entry["interval_status"] not in {"ok", "unavailable"}:
+                    raise ValueError("Unrecognized fit/interval status")
+                groups = [("obs_n", "obs_y", "obs_sd")]
+                if entry["fit_status"] == "ok":
+                    groups.append(("fit_n", "fit_y"))
+                elif any(key in entry for key in ("fit_n", "fit_y", "fit_lo", "fit_hi")):
+                    raise ValueError("Failed fit contains fitted values")
+                if entry["interval_status"] == "ok":
+                    if entry["fit_status"] != "ok":
+                        raise ValueError("Interval without a fitted curve")
+                    groups.append(("fit_n", "fit_lo", "fit_hi"))
+                elif "fit_lo" in entry or "fit_hi" in entry:
+                    raise ValueError("Unavailable interval contains bounds")
+                for fields in groups:
+                    size = len(entry[fields[0]])
+                    if not size or any(len(entry[key]) != size for key in fields):
+                        raise ValueError("Empty or misaligned numerical arrays")
+                    for key in fields:
+                        if any(not (value is None and key == "obs_sd") and
+                               (not isinstance(value, (int, float)) or not math.isfinite(value))
+                               for value in entry[key]):
+                            raise ValueError(f"Non-finite/missing {key}")
 
+
+def build_manifest() -> dict:
     stats = load_dataset_stats()
 
     plots: list[dict] = []
@@ -96,8 +130,7 @@ def build_manifest() -> dict:
         rel = data_path.relative_to(PLOTS_ROOT).parts
         # <data_type>/<subtype>/<group_label>/<norm>/<offaug>/<param>/data.json
         if len(rel) != 7:
-            print(f"  [skip] unexpected depth: {data_path.relative_to(REPO)}")
-            continue
+            raise ValueError(f"Unexpected plot path: {data_path}")
         data_type, subtype, group_label, norm, offaug, param, _ = rel
         stat = stats.get((data_type, subtype, group_label))
         if stat is None:
@@ -105,11 +138,11 @@ def build_manifest() -> dict:
 
         try:
             payload = json.loads(data_path.read_text(encoding="utf-8"))
+            validate_payload(payload)
             classifiers = payload["classifiers"]
             metrics = payload["metrics"]
-        except (json.JSONDecodeError, KeyError):
-            print(f"  [skip] unreadable data file: {data_path.relative_to(REPO)}")
-            continue
+        except (ValueError, KeyError, TypeError) as exc:
+            raise ValueError(f"Invalid or historical website data: {data_path}: {exc}") from exc
 
         base_entry = {
             "data_type": data_type,
@@ -124,7 +157,9 @@ def build_manifest() -> dict:
         }
         for classifier in classifiers:
             for metric in metrics:
-                plots.append({**base_entry, "classifier": classifier, "metric": metric})
+                sources = payload["series"][classifier][metric]
+                if any(sources.values()):
+                    plots.append({**base_entry, "classifier": classifier, "metric": metric})
 
     for key in sorted(missing_stats):
         print(f"  [warn] no datasets.tsv row for {key}")
@@ -135,6 +170,8 @@ def build_manifest() -> dict:
         dimensions.append({**dim, "values": values})
 
     return {
+        "provenance": provenance(REPO),
+        "status": "ready" if plots else "awaiting_rerun",
         "plot_type": "learning_curve",
         "count": len(plots),
         "dimensions": dimensions,
@@ -143,8 +180,9 @@ def build_manifest() -> dict:
 
 
 def main() -> None:
+    OUTPUT.unlink(missing_ok=True)
     manifest = build_manifest()
-    OUTPUT.write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_json(OUTPUT, manifest)
     print(f"Wrote {OUTPUT.relative_to(REPO)} with {manifest['count']} plots.")
     for dim in manifest["dimensions"]:
         print(f"  {dim['label']}: {dim['values']}")

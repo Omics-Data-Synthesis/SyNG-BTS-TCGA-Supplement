@@ -193,7 +193,7 @@
     state.dims = manifest.dimensions;
 
     if (!manifest.plots.length) {
-      els.placeholder.textContent = "manifest.json contains no plots. Run workflow/08_website/run.py.";
+      els.placeholder.textContent = "Learning-curve results are awaiting rerun.";
       return;
     }
 

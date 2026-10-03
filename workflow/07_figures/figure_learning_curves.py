@@ -1,7 +1,7 @@
 """Draw SyntheSize learning-curve fits stored by stage 06.
 
 Stage 06 already ran ``evaluate_sample_sizes`` and fitted the IPLF
-``(1 - a) - b * n^c``. This module only renders ``results/curves.csv``:
+``(1 - a) - b * n^c``. This module only renders ``results/learning_curve_fits.json``:
 observed means (with draw SD) and the stored fitted curve plus 95% CI.
 Layout matches ``helper_source/augmentation_learning_curves.py``: one
 figure per generate() combo, rows = classifiers, columns = real | generated.
@@ -11,7 +11,9 @@ Metric, classifier order, and y-limits come from ``config/synthesize.tsv``.
 
 from __future__ import annotations
 
+import argparse
 import csv
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -19,6 +21,8 @@ import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "workflow"))
+from synthesize_results import POINT_COLUMNS, point_rows, read_archive
 SYNTHESIZE_TSV = ROOT / "config" / "synthesize.tsv"
 CURVES_CSV = ROOT / "results" / "curves.csv"
 FIGURES = ROOT / "figures" / "learning_curves"
@@ -43,6 +47,7 @@ def combo_stem(dataset_id: str, norm: str, model: str, off_aug: str) -> Path:
 def draw_combo(
     points: pd.DataFrame,
     *,
+    fits: list[dict],
     methods: list[str],
     metric: str,
     ylim: tuple[float, float],
@@ -69,7 +74,8 @@ def draw_combo(
             fit = sel[sel["kind"] == "fitted"].sort_values("n")
             color = COLORS[source]
 
-            if not fit.empty:
+            result = next((f for f in fits if f["method"] == method and f["source"] == source), None)
+            if result and result["interval_status"] == "ok":
                 ax.fill_between(
                     fit["n"],
                     fit["ci_low"],
@@ -79,6 +85,7 @@ def draw_combo(
                     linewidth=0,
                     zorder=1,
                 )
+            if result and result["fit_status"] == "ok":
                 ax.plot(
                     fit["n"],
                     fit["value"],
@@ -89,14 +96,13 @@ def draw_combo(
                     label="Fitted",
                 )
             if not obs.empty:
-                yerr = obs["observed_std"].to_numpy(dtype=float)
-                yerr = yerr.copy()
-                yerr[~pd.notna(obs["observed_std"])] = 0.0
+                ax.plot(obs["n"], obs["value"], "o", color=color, markersize=4.5, zorder=3, label="Observed")
+                with_sd = obs[obs["observed_std"].notna()]
                 ax.errorbar(
-                    obs["n"],
-                    obs["value"],
-                    yerr=yerr,
-                    fmt="o",
+                    with_sd["n"],
+                    with_sd["value"],
+                    yerr=with_sd["observed_std"],
+                    fmt="none",
                     color=color,
                     markersize=4.5,
                     capsize=2,
@@ -105,10 +111,16 @@ def draw_combo(
                     label="Observed",
                 )
 
+            notice = "No observations" if result is None else (
+                "Fit unavailable" if result["fit_status"] != "ok" else
+                "Confidence band unavailable" if result["interval_status"] != "ok" else ""
+            )
+            if notice:
+                ax.text(0.02, 0.04, notice, transform=ax.transAxes, fontsize=8)
             ax.set_ylim(*ylim)
             ax.set_ylabel(metric if col_i == 0 else "")
             if row_i == n_rows - 1:
-                ax.set_xlabel("Sample size")
+                ax.set_xlabel("Candidate subset size")
             if row_i == 0:
                 ax.set_title(source.capitalize())
             if col_i == 0:
@@ -136,24 +148,22 @@ def save_figure(fig: plt.Figure, dest_dir: Path, stem: str, title: str) -> None:
     plt.close(fig)
 
 
-def main() -> None:
-    if not CURVES_CSV.exists():
-        raise SystemExit(f"missing {CURVES_CSV.relative_to(ROOT)}; run stage 06 first")
-
+def main(metric: str | None = None) -> None:
+    archive = read_archive(ROOT)
     cfg = read_kv_tsv(SYNTHESIZE_TSV)
     methods = split_csv(cfg["methods"])
-    metric = cfg["static_metric"]
+    metric = metric or cfg["static_metric"]
+    if metric not in split_csv(cfg["metrics"]):
+        raise ValueError(f"Metric {metric} is not configured in synthesize.tsv")
     ylim = (float(cfg["plot_ylim_lo"]), float(cfg["plot_ylim_hi"]))
-
-    curves = pd.read_csv(CURVES_CSV)
+    curves = pd.DataFrame([r for f in archive["fits"] for r in point_rows(f)], columns=POINT_COLUMNS)
+    # Replace this metric's generated figures, including obsolete configurations.
+    for extension in ("pdf", "png"):
+        for path in FIGURES.rglob(f"learning_curve_{metric}.{extension}"):
+            path.unlink()
     if curves.empty:
-        print("results/curves.csv is empty; nothing to draw")
+        print("No archived SyntheSize fits; no learning-curve figures generated.")
         return
-
-    needed = {"dataset_id", "norm", "model", "off_aug", "source", "method", "metric", "kind", "n", "value"}
-    missing = needed - set(curves.columns)
-    if missing:
-        raise SystemExit(f"results/curves.csv missing columns: {sorted(missing)}")
 
     sub = curves[curves["metric"] == metric].copy()
     if sub.empty:
@@ -173,7 +183,9 @@ def main() -> None:
         title = (
             f"{rec.dataset_id}  {rec.norm}  {rec.model}  {rec.off_aug}  — {metric}"
         )
-        fig = draw_combo(points, methods=methods, metric=metric, ylim=ylim, title=title)
+        fits = [f for f in archive["fits"] if f["metric_name"] == metric and
+                all(f[key] == getattr(rec, key) for key in keys)]
+        fig = draw_combo(points, fits=fits, methods=methods, metric=metric, ylim=ylim, title=title)
         dest = combo_stem(rec.dataset_id, rec.norm, rec.model, rec.off_aug)
         save_figure(fig, dest, stem, title)
         n_ok += 1
@@ -183,4 +195,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--metric", help="configured metric (default: static_metric)")
+    main(parser.parse_args().metric)
