@@ -21,7 +21,7 @@ uv sync                       # Python
 Rscript -e 'renv::restore()'  # R
 ```
 
-So far the lockfiles are only starting points, not the finished environments. Python currently holds `syng-bts` plus `h5py`, `pandas`, `numpy`, `matplotlib`, and `scipy`. R holds `DANA`, its four imports, and its suggested Bioconductor packages: `edgeR`, `DESeq2`, `limma`, `sva`, `RUVSeq`, `EDASeq`, `Biobase`, and `ggnewscale`. Please add dependencies and packages for each stage as needed, and re-lock both environments, as described below.
+Stage 07 needs both environments. Python (`matplotlib`, `pandas`, and the rest of `pyproject.toml`) draws the architecture schematic and the SyntheSize learning curves. R draws the fidelity figures, and those scripts depend on `ggplot2`, `dplyr`, `tidyr`, `scales`, and `patchwork`, which are recorded in `renv.lock` along with the earlier-stage packages (`DANA`, `DESeq2`, `limma`, and the rest of that tree). `Rscript` has to be on `PATH`. Add a package for a later stage with `uv add` or `renv::install` followed by `renv::snapshot`, as described below.
 
 
 ### Python with uv
@@ -119,11 +119,10 @@ One row per published output. Example structure:
 |---|---|---|
 | Overall workflow | Hand-drawn schematic, no code | — |
 | cVAE architecture | `07_figures/run.py` | — (schematic of `syng_bts.helper_models.CVAE`) |
-| ARI across 24 miRNA cohorts | `07_figures/run.py` | `results/fidelity.csv` |
-| Quality evaluation for STAD | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
-| HNSC learning curves | `07_figures/run.py` | `results/curves.csv` |
-| cARI across 5 RNA-seq cohorts | `07_figures/run.py` | `results/fidelity.csv` |
-| RNA-seq UMAP and MAD panels | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
+| Data-source separation, miRNA and selected RNA | `07_figures/run.py` | `results/fidelity.csv` |
+| miRNA fidelity, one figure per cohort | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
+| RNA-seq selected fidelity and UMAP | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
+| SyntheSize learning curves | `07_figures/run.py` | `results/curves.csv` |
 | Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
 | Interactive learning curves | `08_website/run.py` | `data/processed/curves/**/metrics_*.csv` → `website/plots/**/data.json` |

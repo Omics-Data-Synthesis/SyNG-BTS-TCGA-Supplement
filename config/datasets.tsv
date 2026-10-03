@@ -23,8 +23,8 @@ TGCT_histologic_diagnosis	TGCT	mirna	binary	histologic_diagnosis	histologic_diag
 THCA_initial_pathologic_dx_year	THCA	mirna	binary	initial_pathologic_dx_year	initial_pathologic_dx_year	median_split				auto_mean			573	573	1881	1593	2.971	1.498	324
 THYM_primary_pathology_history_myasthenia_gravis	THYM	mirna	binary	primary_pathology_history_myasthenia_gravis	history_myasthenia_gravis	binary_majority				auto_mean			126	123	1881	1524	2.747	1.788	446
 UCS_primary_pathology_total_pelv_lnr	UCS	mirna	binary	primary_pathology_total_pelv_lnr	lymph_nodes_pelvic_examined_count	median_split_na0				auto_mean			57	57	1881	1414	3.728	2.269	330
-RNA_COAD_tumor_status	COAD	rnaseq	binary	tumor_status	tumor_status	binary_majority				fixed_mean_sd	5	2	524	467	60660	57567	5.000	2.000	723
-RNA_LAML	LAML	rnaseq	none							fixed_mean_sd	5	2	151	151					
-RNA_READ	READ	rnaseq	none							fixed_mean_sd	5	2	177	177					
+RNA_COAD_tumor_status	COAD	rnaseq	binary	tumor_status	tumor_status	binary_majority				fixed_mean_sd	5	2	524	467	60660	57567	5.000	2.000	725
+RNA_LAML	LAML	rnaseq	none							fixed_mean_sd	5	2	151	151	60660	57508	5.000	2.000	850
+RNA_READ	READ	rnaseq	none							fixed_mean_sd	5	2	177	177	60660	54477	5.000	2.000	633
 RNA_SKCM_breslow_thickness_at_diagnosis	SKCM	rnaseq	binary	breslow_thickness_at_diagnosis	breslow_thickness_at_diagnosis	median_split				fixed_mean_sd	6	2	473	361	60660	57063	6.000	2.000	1084
-RNA_PAAD	PAAD	rnaseq	none							fixed_mean_sd	5	2	183	183					
+RNA_PAAD	PAAD	rnaseq	none							fixed_mean_sd	5	2	183	183	60660	55553	5.000	2.000	866
