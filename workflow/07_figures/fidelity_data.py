@@ -92,13 +92,85 @@ def select_panel(data: pd.DataFrame, panel: str, root: Path = ROOT) -> pd.DataFr
     )
     if settings.isna().any().any() or settings.duplicated(KEYS).any():
         raise ValueError(f"Invalid or unmatched figure settings for {panel}")
+    return select_configurations(data, settings, panel)
+
+
+def select_configurations(
+    data: pd.DataFrame, settings: pd.DataFrame, label: str
+) -> pd.DataFrame:
+    """Match complete configuration keys without silently dropping requested rows."""
     selected = settings.merge(
         data, on=KEYS, how="left", validate="one_to_many", indicator=True
     )
     missing = selected.loc[selected._merge.eq("left_only"), "dataset_id"].tolist()
     if missing:
-        raise ValueError(f"Missing {panel} configurations: {', '.join(missing)}")
+        raise ValueError(f"Missing {label} configurations: {', '.join(missing)}")
     return selected.drop(columns="_merge")
+
+
+def select_mirna_grid(data: pd.DataFrame, root: Path = ROOT) -> pd.DataFrame:
+    """Use the configured miRNA model/normalization grid and figure augmentation."""
+    cohorts = select_panel(data, "mirna_umap", root)[
+        ["dataset_id", "cohort", "modality", "grouping", "off_aug", "AE_head_num"]
+    ].drop_duplicates()
+    models = pd.read_csv(root / "config/generate_models.tsv", sep="\t")
+    norms = pd.read_csv(root / "config/generate_norms.tsv", sep="\t")
+    grid = norms[["label"]].rename(columns={"label": "norm"}).merge(models, how="cross")
+    settings = cohorts.merge(grid, on=["modality", "grouping"])
+    if settings.empty or settings.duplicated(KEYS).any():
+        raise ValueError("Empty or duplicate miRNA figure configurations")
+    return select_configurations(data, settings, "miRNA fidelity")
+
+
+def read_umap(root: Path = ROOT) -> pd.DataFrame:
+    """Read stored stage 05 embeddings; no fitting or resampling happens here."""
+    data = pd.read_csv(root / "results/umap.csv", float_precision="round_trip")
+    required = set(KEYS[:-1] + ["UMAP1", "UMAP2", "datatype", "groups"])
+    if set(data.columns) != required or data.empty:
+        raise ValueError("Invalid UMAP schema or empty table")
+    if (
+        data[KEYS[:-1]].isna().any().any()
+        or not np.isfinite(data[["UMAP1", "UMAP2"]]).all().all()
+        or not data.datatype.isin(["Real", "Generated"]).all()
+    ):
+        raise ValueError("Missing or invalid UMAP coordinates/source labels")
+    return data
+
+
+def select_umap(data: pd.DataFrame, fidelity: pd.DataFrame) -> pd.DataFrame:
+    """Require the selected embedding's source and group counts to match fidelity."""
+    # The coordinate table does not identify AE heads. These figures use none.
+    if not fidelity.off_aug.eq("none").all() or not fidelity.AE_head_num.eq(0).all():
+        raise ValueError("UMAP figure selections require no AE-head augmentation")
+    keys = KEYS[:-1]
+    settings = fidelity[
+        keys + ["cohort", "grouping", "n_real", "n_generated"]
+    ].drop_duplicates()
+    selected = settings.merge(data, on=keys, how="left", validate="one_to_many")
+    if selected.datatype.isna().any():
+        raise ValueError("Missing selected UMAP configuration")
+    counts = selected.groupby(keys + ["datatype"]).size().unstack(fill_value=0)
+    expected = settings.set_index(keys).reindex(counts.index)
+    if (
+        not counts.reindex(columns=["Real", "Generated"], fill_value=0)
+        .eq(expected[["n_real", "n_generated"]].set_axis(["Real", "Generated"], axis=1))
+        .all()
+        .all()
+    ):
+        raise ValueError("UMAP source counts do not match fidelity sample counts")
+    grouped = selected[selected.grouping.eq("binary")]
+    if not grouped.groups.isin([0, 1]).all():
+        raise ValueError("Binary UMAP configurations require group labels 0 and 1")
+    if not grouped.empty:
+        counts = (
+            grouped.groupby(keys + ["groups", "datatype"]).size().unstack(fill_value=0)
+        )
+        if (
+            not counts.Real.eq(counts.Generated).all()
+            or not grouped.groupby(keys)["groups"].nunique().eq(2).all()
+        ):
+            raise ValueError("UMAP binary groups are missing or not source-matched")
+    return selected
 
 
 def summarize(data: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
