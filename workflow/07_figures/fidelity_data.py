@@ -1,0 +1,118 @@
+"""Read and select the stage 05 results used by the fidelity figures."""
+
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[2]
+KEYS = ["dataset_id", "modality", "norm", "model", "off_aug", "AE_head_num"]
+METRICS = [
+    "source_ari",
+    "cccpcc",
+    "ccc_log10_pvalue",
+    "ccc_log2_FC",
+    "ccc_meandiff",
+    "mad_mean",
+    "mad_sd",
+    "mad_cv",
+    "medae_mean",
+    "medae_sd",
+    "medae_cv",
+]
+
+
+def read_fidelity(root: Path = ROOT) -> pd.DataFrame:
+    """Require complete, uniquely keyed draws; retain stored numerical precision."""
+    path = root / "results/fidelity.csv"
+    data = pd.read_csv(path, float_precision="round_trip")
+    required = set(
+        KEYS
+        + METRICS
+        + [
+            "draw",
+            "draw_seed",
+            "seed",
+            "n_real",
+            "n_generated",
+            "n_features",
+        ]
+    )
+    if set(data.columns) != required or data.empty:
+        raise ValueError(f"Invalid fidelity schema or empty table: {path}")
+    config = (
+        pd.read_csv(root / "config/fidelity.tsv", sep="\t").set_index("param").value
+    )
+    n_draws, seed_base = int(config["n_draws"]), int(config["draw_seed_base"])
+    data["AE_head_num"] = data.AE_head_num.fillna(0)
+    if data[KEYS].isna().any().any() or data.duplicated(KEYS + ["draw"]).any():
+        raise ValueError("Missing configuration keys or duplicate fidelity draws")
+    counts = data.groupby(KEYS, dropna=False).size()
+    if (
+        not counts.eq(n_draws).all()
+        or not data.draw.isin(range(1, n_draws + 1)).all()
+        or not data.draw_seed.eq(seed_base + data.draw).all()
+    ):
+        raise ValueError("Incomplete fidelity draws or inconsistent draw seeds")
+    if not data.source_ari.between(-0.5, 1).all():
+        raise ValueError("Missing or invalid signed source ARI")
+    if not np.isfinite(data.seed).all() or not data.seed.mod(1).eq(0).all():
+        raise ValueError("Missing or invalid workflow seeds")
+    sizes = data[["n_real", "n_generated", "n_features"]]
+    if (
+        not np.isfinite(sizes).all().all()
+        or not sizes.gt(0).all().all()
+        or not sizes.mod(1).eq(0).all().all()
+        or not data.n_real.eq(data.n_generated).all()
+    ):
+        raise ValueError("Invalid or unequal empirical/generated sample counts")
+    if (
+        data.groupby(KEYS)[["seed", *sizes.columns]]
+        .nunique(dropna=False)
+        .ne(1)
+        .any()
+        .any()
+    ):
+        raise ValueError("Inconsistent seeds or dimensions within a configuration")
+    return data
+
+
+def select_panel(data: pd.DataFrame, panel: str, root: Path = ROOT) -> pd.DataFrame:
+    """Select every configured cohort using full configuration keys."""
+    rules = pd.read_csv(root / "config/fidelity_figures.tsv", sep="\t")
+    rules = rules.loc[rules.panel.eq(panel)].drop(columns="panel")
+    if rules.empty:
+        raise ValueError(f"No figure settings for {panel}")
+    datasets = pd.read_csv(root / "config/datasets.tsv", sep="\t")
+    datasets = datasets.loc[
+        datasets.preprocess.ne("skip"), ["dataset_id", "cohort", "modality", "grouping"]
+    ]
+    settings = rules.merge(
+        datasets, on=["modality", "grouping"], how="left", validate="one_to_many"
+    )
+    if settings.isna().any().any() or settings.duplicated(KEYS).any():
+        raise ValueError(f"Invalid or unmatched figure settings for {panel}")
+    selected = settings.merge(
+        data, on=KEYS, how="left", validate="one_to_many", indicator=True
+    )
+    missing = selected.loc[selected._merge.eq("left_only"), "dataset_id"].tolist()
+    if missing:
+        raise ValueError(f"Missing {panel} configurations: {', '.join(missing)}")
+    return selected.drop(columns="_merge")
+
+
+def summarize(data: pd.DataFrame, metrics: list[str]) -> pd.DataFrame:
+    """Means and observed draw ranges; missing selected metrics are errors."""
+    if data.empty or not np.isfinite(data[metrics]).all().all():
+        raise ValueError("Missing or nonfinite values in selected fidelity metrics")
+    long = data.melt(
+        id_vars=KEYS + ["cohort", "grouping"],
+        value_vars=metrics,
+        var_name="metric",
+        value_name="value",
+    )
+    return (
+        long.groupby(KEYS + ["cohort", "grouping", "metric"], sort=False)
+        .value.agg(mean="mean", low="min", high="max")
+        .reset_index()
+    )

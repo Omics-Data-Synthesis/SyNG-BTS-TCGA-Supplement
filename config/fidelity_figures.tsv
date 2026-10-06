@@ -1,0 +1,5 @@
+panel	modality	grouping	norm	model	off_aug	AE_head_num
+mirna_ari	mirna	binary	raw	CVAE1-10	none	0
+mirna_umap	mirna	binary	TC	CVAE1-10	none	0
+rnaseq	rnaseq	none	raw	VAE1-100	none	0
+rnaseq	rnaseq	binary	TC	CVAE1-100	none	0
