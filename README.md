@@ -70,8 +70,8 @@ Rscript -e 'renv::install("bioc::DESeq2")'         # Bioconductor package
 | `workflow/` | One directory per stage, each with a single entry point `run.R` or `run.py`. See `workflow/README.md` for details. |
 | `src/python/`, `src/R/` | Helpers used by **more than one** stage. Single-stage helpers stay in the stage directory. |
 | `data/` | Local workspace. Contents are gitignored. Downloads and preprocessing results go here, but should not be committed. |
-| `results/` | Small tidy CSVs, including the source data behind every manuscript figure and table. Committed. |
-| `figures/` | Final manuscript figures, built by workflow stage 07. Committed. |
+| `results/` | Local numerical outputs. New files are ignored; previously tracked small tables remain tracked. Preserve the complete SyntheSize archive and its companion CSVs together as a versioned release bundle after review. |
+| `figures/` | Selected, reviewed final manuscript figures are committed. The full generated grid under `figures/learning_curves/` is ignored. |
 | `website/` | Interactive supplementary learning-curve site. Front-end plus precomputed `plots/**/data.json` and `manifest.json`, built by stage 08. Committed. GitHub Actions publishes this directory to GitHub Pages. |
 
 
