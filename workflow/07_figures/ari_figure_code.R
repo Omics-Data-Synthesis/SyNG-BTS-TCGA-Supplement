@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
 # Figure from the unified Stage 05 fidelity output.
-# ARI is defined as 1 - cARI throughout. Points are means across five draws.
+# Signed source ARI; points are means of unrounded per-draw values.
 
 suppressPackageStartupMessages({
   library(ggplot2)
@@ -22,13 +22,14 @@ orange <- "#F28E00"
 grey <- "#9B9B9B"
 grid_grey <- "#C9C9C9"
 
-fidelity <- read.csv(file.path(RESULTS_DIR, "fidelity.csv"), stringsAsFactors = FALSE)
+source(file.path(SCRIPT_DIR, "fidelity_data.R"), local = TRUE)
+fidelity <- read_fidelity(ROOT)
 
 mirna <- fidelity %>%
   filter(modality == "mirna", norm == "raw", model == "CVAE1-10", off_aug == "none") %>%
-  mutate(ARI = 1 - cARI, Cohort = sub("_.*$", "", dataset_id)) %>%
+  mutate(Cohort = sub("_.*$", "", dataset_id)) %>%
   group_by(Cohort) %>%
-  summarise(mean = mean(ARI, na.rm = TRUE), .groups = "drop") %>%
+  summarise(mean = mean(source_ari), .groups = "drop") %>%
   arrange(mean) %>%
   mutate(Cohort = factor(Cohort, levels = Cohort))
 
@@ -46,17 +47,17 @@ rna_selection <- data.frame(
 
 rna <- inner_join(filter(fidelity, modality == "rnaseq"), rna_selection,
                   by = c("dataset_id", "norm", "model", "off_aug")) %>%
-  mutate(ARI = 1 - cARI) %>%
   group_by(Cohort) %>%
-  summarise(mean = mean(ARI, na.rm = TRUE), .groups = "drop") %>%
+  summarise(mean = mean(source_ari), .groups = "drop") %>%
   arrange(mean) %>%
   mutate(Cohort = factor(Cohort, levels = Cohort))
 
-if (nrow(mirna) == 0) stop("No miRNA results found for raw / CVAE1-10.")
-if (nrow(rna) == 0) stop("No RNA rows matched rna_selection.")
+if (nrow(mirna) != 24) stop("Expected 24 miRNA cohorts for raw / CVAE1-10.")
+if (nrow(rna) != 5) stop("Expected five selected RNA cohorts.")
 
 y_top <- max(.12, ceiling(max(c(mirna$mean, rna$mean)) * 100) / 100 + .01)
-y_breaks <- seq(0, y_top, by = .05)
+y_bottom <- min(-.01, floor(min(c(mirna$mean, rna$mean)) * 100) / 100 - .01)
+y_breaks <- sort(unique(c(y_bottom, seq(0, y_top, by = .05))))
 
 panel_theme <- theme_classic(base_size = 11) +
   theme(
@@ -71,14 +72,15 @@ panel_theme <- theme_classic(base_size = 11) +
 
 lollipop <- function(dat, color, show_y = TRUE) {
   ggplot(dat, aes(Cohort, mean)) +
+    geom_hline(yintercept = 0, color = "#555555", linewidth = .4) +
     geom_segment(aes(xend = Cohort, y = 0, yend = mean), color = grey, linewidth = .6) +
     geom_point(color = color, size = 3.4) +
-    geom_text(aes(label = sprintf("%.2f", mean)), color = color,
+    geom_text(aes(label = ari_label(mean)), color = color,
               size = 3.0, vjust = -.9) +
-    scale_y_continuous(limits = c(0, y_top), breaks = y_breaks,
+    scale_y_continuous(limits = c(y_bottom, y_top), breaks = y_breaks,
                        labels = sprintf("%.2f", y_breaks),
                        expand = expansion(mult = c(0, .06))) +
-    labs(x = NULL, y = if (show_y) "ARI\n(lower = less data-source separation)" else NULL) +
+    labs(x = NULL, y = if (show_y) "Signed source ARI" else NULL) +
     panel_theme +
     theme(
       axis.text.y = if (show_y) element_text(size = 9.5) else element_blank(),
@@ -109,7 +111,7 @@ title_row <- panel_title("A  miRNA-seq - raw - cVAE-1:10") +
 body_row <- p_a + p_b + plot_layout(widths = c(1.72, 1))
 
 caption <- paste0(
-  "ARI = 1 - cARI; ARI = 0 indicates no agreement with data source beyond chance. ",
+  "Signed ARI: zero is the chance-adjusted agreement baseline; negative values indicate below-chance agreement. ",
   "Points and labels show means across 5 draws.\nRNA: one-group cohorts use raw VAE-1:100; ",
   "two-group cohorts use TC cVAE-1:100. No selected setting uses AE-head augmentation."
 )

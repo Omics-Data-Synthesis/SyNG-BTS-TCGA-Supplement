@@ -33,7 +33,8 @@ selection <- data.frame(
   stringsAsFactors = FALSE
 )
 
-fidelity <- read.csv(file.path(RESULTS_DIR, "fidelity.csv"), stringsAsFactors = FALSE) %>%
+source(file.path(SCRIPT_DIR, "fidelity_data.R"), local = TRUE)
+fidelity <- read_fidelity(ROOT) %>%
   filter(modality == "rnaseq")
 umap_data <- read.csv(file.path(RESULTS_DIR, "umap.csv"), stringsAsFactors = FALSE) %>%
   filter(modality == "rnaseq")
@@ -45,14 +46,14 @@ if (nrow(selected) != 25) {
 }
 
 long <- selected %>%
-  mutate(ARI = 1 - cARI) %>%
+  mutate(ARI = source_ari) %>%
   select(Cohort, y, draw, ARI, medae_mean, medae_sd, medae_cv) %>%
   pivot_longer(c(ARI, medae_mean, medae_sd, medae_cv), names_to = "metric", values_to = "value") %>%
   group_by(Cohort, y, metric) %>%
   summarise(mean = mean(value, na.rm = TRUE), low = min(value, na.rm = TRUE),
             high = max(value, na.rm = TRUE), .groups = "drop")
 
-metric_labels <- c(ARI = "Source ARI", medae_mean = "MedAE mean",
+metric_labels <- c(ARI = "Signed source ARI", medae_mean = "MedAE mean",
                    medae_sd = "MedAE SD", medae_cv = "MedAE CV")
 metric_order <- names(metric_labels)
 
@@ -67,15 +68,19 @@ spec <- long %>% group_by(metric) %>% summarise(maximum = max(high, na.rm = TRUE
 spec <- spec[match(metric_order, spec$metric), ]
 
 metric_panel <- function(key, limit) {
-  d <- filter(long, metric == key); br <- c(0, limit / 2, limit)
+  d <- filter(long, metric == key)
+  lower <- if (key == "ARI") min(-.01, floor(min(d$low) * 100) / 100) else 0
+  br <- if (key == "ARI") c(lower, 0, limit) else c(0, limit / 2, limit)
+  padding <- .08 * (limit - lower)
   ggplot(d, aes(mean, y)) +
-    geom_segment(aes(x = 0, xend = limit, yend = y), color = guide_grey, linewidth = .6) +
-    geom_errorbar(aes(xmin = pmax(low, 0), xmax = pmin(high, limit)), orientation = "y",
+    {if (key == "ARI") geom_vline(xintercept = 0, color = guide_grey, linetype = "dashed")} +
+    geom_segment(aes(x = lower, xend = limit, yend = y), color = guide_grey, linewidth = .6) +
+    geom_errorbar(aes(xmin = low, xmax = high), orientation = "y",
                   width = 0, color = teal, linewidth = .85) +
     geom_point(color = teal, size = 2.7) +
-    scale_x_continuous(limits = c(-.08 * limit, 1.08 * limit), breaks = br,
+    scale_x_continuous(limits = c(lower - padding, limit + padding), breaks = br,
                        labels = format(br, trim = TRUE, scientific = FALSE),
-                       oob = scales::squish, expand = expansion(mult = c(0, 0))) +
+                       expand = expansion(mult = c(0, 0))) +
     scale_y_continuous(limits = c(.5, 5.5), breaks = NULL) +
     labs(x = NULL, y = NULL) +
     theme_classic(base_size = 12) +
@@ -110,12 +115,11 @@ p_body <- wrap_plots(c(list(p_labels), metric_plots), nrow = 1,
                      widths = c(2.35, rep(1, 4)))
 p_summary <- p_headers / p_body + plot_layout(heights = c(.11, 1))
 p_summary_title <- ggplot() +
-  annotate("segment", x = .56, xend = .40, y = .35, yend = .35,
-           arrow = arrow(length = unit(.08, "inches")), linewidth = .5) +
-  annotate("text", x = .48, y = .72, label = "Lower is better", size = 4.5) +
+  annotate("text", x = .5, y = .5,
+           label = "ARI: zero = chance baseline; negative = below chance. Lower MedAE is better.", size = 3.8) +
   coord_cartesian(xlim = c(0, 1), ylim = c(0, 1), clip = "off") +
   labs(title = "A  RNA-seq augmentation configurations and fidelity",
-       subtitle = "Source ARI and taxon-level MedAE; circles are means and green lines span five draws") +
+       subtitle = "Signed source ARI and marker-level MedAE; circles are means and green lines span five draws") +
   theme_void() +
   theme(plot.title = element_text(size = 17, face = "bold", hjust = 0),
         plot.subtitle = element_text(size = 12.5, color = text_grey, hjust = 0,

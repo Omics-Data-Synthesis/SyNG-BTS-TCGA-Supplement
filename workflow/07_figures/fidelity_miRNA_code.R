@@ -31,7 +31,8 @@ if (!umap_model %in% models) stop("UMAP model must be CVAE1-5, CVAE1-10, or CVAE
 blue <- "#2878B5"; orange <- "#E6863B"; teal <- "#007A4D"
 guide_grey <- "#A8A8A8"; text_grey <- "#53636D"
 
-fidelity_all <- read.csv(file.path(RESULTS_DIR, "fidelity.csv"), stringsAsFactors = FALSE)
+source(file.path(SCRIPT_DIR, "fidelity_data.R"), local = TRUE)
+fidelity_all <- read_fidelity(ROOT)
 umap_all <- read.csv(file.path(RESULTS_DIR, "umap.csv"), stringsAsFactors = FALSE)
 
 fidelity <- fidelity_all %>%

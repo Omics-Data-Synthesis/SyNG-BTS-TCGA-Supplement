@@ -21,7 +21,15 @@ group labels have been dropped, so the sample set has to be fixed first.
 | 07 | Figures and tables | `uv run workflow/07_figures/run.py` | `results/` | `figures/`, `results/tables/` |
 | 08 | Website | `uv run workflow/08_website/run.py` | `results/learning_curve_fits.json` and companion CSVs, `config/` | `website/plots/`, `website/manifest.json` |
 
-**Stage 05 should also write the UMAP coordinates.** cARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10_pvalue` / `ccc_log2_FC` are computed by `dana_dea.R` (needs `Rscript` on PATH) for binary grouped jobs. `grouping=none` RNA-seq skips DANA/DEA and SyntheSize (stage 06). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.
+**Stage 05 also writes the UMAP coordinates.** Signed source ARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10_pvalue` / `ccc_log2_FC` are computed by `dana_dea.R` (needs `Rscript` on PATH) for binary grouped jobs. `grouping=none` RNA-seq skips DANA/DEA and SyntheSize (stage 06). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.
+
+`results/fidelity.csv` stores full-precision signed `source_ari` per draw and the actual
+`draw_seed` (currently 101–105); `seed` remains the shared workflow/UMAP seed, 42.
+Configuration keys are dataset, modality, normalization, model, off_aug and AE_head_num,
+with `draw` identifying each row. Figure means and minimum–maximum ranges are calculated
+from unrounded draws; rounding is only for labels. Zero is the chance-adjusted agreement
+baseline, and negative values indicate below-chance agreement, not automatically better
+mixing. This measure alone does not establish distributional equivalence.
 
 Stage 07 keeps one `figure_*.py` module per figure, each exposing `main()`, registered in the
 `FIGURES` list in `run.py`. `figure_cvae_architecture.py` is a schematic of

@@ -1,10 +1,10 @@
 # Stage 05: fidelity metrics and UMAP coordinates for every generated table.
 #
-# Python computes cARI, CCC of feature means, MAD, MedAE, and UMAP coordinates.
+# Python computes signed source ARI, CCC of feature means, MAD, MedAE, and UMAP.
 # DANA cccpcc and voom+limma CCC of -log10(p) and log2 FC run in dana_dea.R
 # (same maths as helper_source/Xinyi_version/evaluate_synthetic.R) for binary
 # grouped jobs only. grouping=none RNA skips DANA/DEA (no two-class contrast)
-# but still computes cARI, MAD, MedAE, and UMAP. miRNA coordinates are
+# but still computes source ARI, MAD, MedAE, and UMAP. miRNA coordinates are
 # config/mirna_coordinates.csv; dots in `name` are turned into hyphens
 # to match TCGA feature names. RNA-seq has no gene-coordinate table yet, so
 # cccpcc is NA for those jobs; the other metrics still run.
@@ -37,7 +37,7 @@ import pandas as pd
 
 from metrics import (
     clip_nonfinite,
-    cluster_cari,
+    source_ari,
     load_table,
     mad_metrics,
     sample_to_n,
@@ -69,7 +69,7 @@ FIDELITY_FIELDS = [
     "n_real",
     "n_generated",
     "n_features",
-    "cARI",
+    "source_ari",
     "cccpcc",
     "ccc_log10_pvalue",
     "ccc_log2_FC",
@@ -81,6 +81,7 @@ FIDELITY_FIELDS = [
     "medae_sd",
     "medae_cv",
     "seed",
+    "draw_seed",
 ]
 
 
@@ -138,27 +139,12 @@ def planned_jobs(datasets, models_by_key, norms, off_aug_by_key):
     return jobs
 
 
-def write_csv(path: Path, df: pd.DataFrame) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    df.to_csv(tmp, index=False)
-    tmp.replace(path)
-
-
 def ensure_csv_fields(path: Path, fields: list[str]) -> None:
-    """Add any missing columns so later appends keep a stable header."""
+    """Require the expected result columns before appending."""
     if not path.exists():
         return
-    df = pd.read_csv(path)
-    if df.empty and list(df.columns) == fields:
-        return
-    for col in fields:
-        if col not in df.columns:
-            df[col] = pd.NA
-    extras = [c for c in df.columns if c not in fields]
-    ordered = [c for c in fields if c in df.columns] + extras
-    if list(df.columns) != ordered:
-        write_csv(path, df[ordered])
+    if list(pd.read_csv(path, nrows=0).columns) != fields:
+        raise ValueError(f"Incompatible fidelity schema in {path}; recompute signed source ARI.")
 
 
 def append_rows(path: Path, rows: list[dict], fields: list[str]) -> None:
@@ -193,17 +179,30 @@ def run_dana_dea(jobs_csv: Path, out_csv: Path) -> pd.DataFrame:
     return pd.read_csv(out_csv)
 
 
-def already_done(done: set[tuple[str, str, str, str]], ds, norm, model, tag) -> bool:
-    return (ds["dataset_id"], norm["label"], model, tag) in done
+def already_done(done, ds, norm, model, off_aug, ae_head_num) -> bool:
+    return (ds["dataset_id"], ds["modality"], norm["label"], model,
+            off_aug, ae_head_num or 0) in done
 
 
-def load_done_keys(path: Path) -> set[tuple[str, str, str, str]]:
+def load_done_keys(path: Path, n_draws: int, draw_seed_base: int) -> set[tuple]:
     if not path.exists():
         return set()
+    ensure_csv_fields(path, FIDELITY_FIELDS)
     df = pd.read_csv(path)
     if df.empty:
         return set()
-    return set(zip(df["dataset_id"].astype(str), df["norm"].astype(str), df["model"].astype(str), df["off_aug"].astype(str)))
+    df["AE_head_num"] = df["AE_head_num"].fillna(0)
+    keys = ["dataset_id", "modality", "norm", "model", "off_aug", "AE_head_num"]
+    if df[keys].isna().any().any():
+        raise ValueError("Missing fidelity configuration keys.")
+    done = set()
+    for key, rows in df.groupby(keys, dropna=False):
+        if (len(rows) != n_draws or set(rows["draw"]) != set(range(1, n_draws + 1))
+                or not rows["source_ari"].between(-0.5, 1).all()
+                or not (rows["draw_seed"] == draw_seed_base + rows["draw"]).all()):
+            raise ValueError(f"Invalid or incomplete fidelity results for {key}; recompute this configuration.")
+        done.add(key)
+    return done
 
 
 def main() -> None:
@@ -223,13 +222,15 @@ def main() -> None:
     n_draws = int(cfg["n_draws"])
     draw_seed_base = int(cfg["draw_seed_base"])
     skip_existing = as_bool(cfg.get("skip_existing", "true"))
-    ensure_csv_fields(FIDELITY_CSV, FIDELITY_FIELDS)
     coords_mirna = ROOT / cfg["coords_mirna"]
     if not coords_mirna.exists():
         raise SystemExit(f"missing miRNA coordinates: {coords_mirna}")
 
     jobs = planned_jobs(datasets, models_by_key, norms, off_aug_by_key)
-    done = load_done_keys(FIDELITY_CSV) if skip_existing else set()
+    existing = load_done_keys(FIDELITY_CSV, n_draws, draw_seed_base)
+    if existing and not skip_existing:
+        raise ValueError("Remove existing fidelity results before recomputing; appending would duplicate draws.")
+    done = existing
     print(f"SEED             : {SEED}")
     print(f"Jobs             : {len(jobs)}")
     print(f"n_draws          : {n_draws}")
@@ -256,7 +257,7 @@ def main() -> None:
             "seed": SEED,
         }
 
-        if skip_existing and already_done(done, ds, norm, model, off_aug or "none"):
+        if skip_existing and already_done(done, ds, norm, model, off_aug or "none", ae_head_num):
             print("    skipped (exists)", flush=True)
             n_skip += 1
             append_rows(LOG_CSV, [{**log_base, "status": "SKIPPED (exists)"}], list(log_base) + ["status"])
@@ -314,7 +315,7 @@ def main() -> None:
                             gen_feat, gen_groups, real_groups, draw_seed_base + draw
                         )
                     real_a, gen_a, _ = align_matrices(real_feat, samp_feat)
-                    cari = cluster_cari(real_a, gen_a)
+                    ari = source_ari(real_a, gen_a)
                     mads = mad_metrics(real_a, gen_a)
                     if need_dana:
                         gen_csv = tmpdir / f"gen_draw{draw}.csv"
@@ -351,12 +352,13 @@ def main() -> None:
                             "n_real": int(real_a.shape[0]),
                             "n_generated": int(gen_a.shape[0]),
                             "n_features": int(real_a.shape[1]),
-                            "cARI": cari,
+                            "source_ari": ari,
                             "cccpcc": "",
                             "ccc_log10_pvalue": "",
                             "ccc_log2_FC": "",
                             **mads,
                             "seed": SEED,
+                            "draw_seed": draw_seed_base + draw,
                         }
                     )
 

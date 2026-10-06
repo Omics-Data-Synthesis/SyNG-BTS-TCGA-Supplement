@@ -1,4 +1,4 @@
-"""Python-side fidelity helpers: sampling, cARI, CCC, MAD, UMAP coordinates."""
+"""Python-side fidelity helpers: sampling, source ARI, CCC, MAD, UMAP."""
 
 from __future__ import annotations
 
@@ -114,8 +114,12 @@ def sample_to_n(
     return feat, groups
 
 
-def cluster_cari(real: np.ndarray, gen: np.ndarray) -> float:
-    """1 - |ARI(real/generated vs Ward clusters)|, matching Xinyi's cluster_eval."""
+def source_ari(real: np.ndarray, gen: np.ndarray) -> float:
+    """Signed ARI of empirical/generated source labels versus Ward clusters.
+
+    Keep full precision; zero is the chance-adjusted agreement baseline.
+    Preserve the study's existing zero-SD replacement and clustering method.
+    """
     gen = replace_zero_sd(real, gen)
     combined = np.vstack([real, gen])
     datatype = np.array(["Real"] * len(real) + ["Generated"] * len(gen))
@@ -127,7 +131,7 @@ def cluster_cari(real: np.ndarray, gen: np.ndarray) -> float:
             return float("nan")
         z = linkage(dist, method="ward")
         clusters = fcluster(z, t=2, criterion="maxclust")
-        return float(1.0 - abs(round(adjusted_rand_score(datatype, clusters), 4)))
+        return float(adjusted_rand_score(datatype, clusters))
     except ValueError:
         return float("nan")
 
