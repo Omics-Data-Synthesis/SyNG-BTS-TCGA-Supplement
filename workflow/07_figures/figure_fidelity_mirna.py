@@ -15,12 +15,10 @@ from fidelity_data import (
     select_umap,
     summarize,
 )
+from fidelity_plot import draw_metric, draw_umap, legend_handles, model_label
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
-from matplotlib.ticker import FuncFormatter
 
-COLORS = {"Real": "#2878B5", "Generated": "#E6863B"}
-GREEN = "#007A4D"
 METRIC_LABELS = {
     "cccpcc": "CCC-PCC",
     "ccc_log10_pvalue": "CCC −log₁₀(p)",
@@ -50,7 +48,6 @@ def draw_figure(
     values = summarize(fidelity, list(METRIC_LABELS))
     cohort = fidelity.cohort.unique().item()
     norm, model = umap[["norm", "model"]].drop_duplicates().iloc[0]
-    model_label = model.replace("CVAE", "cVAE").replace("1-", "-1:")
     n_rows = len(rows)
     y = np.arange(n_rows)[::-1]
     with plt.rc_context({"font.family": "DejaVu Sans", "font.size": 11}):
@@ -77,57 +74,17 @@ def draw_figure(
         fig.text(
             heading.x0,
             heading.y0 + 0.005,
-            f"Empirical and generated data · {model_label}, {norm}",
+            f"Empirical and generated data · {model_label(model)}, {norm}",
             fontsize=11,
             color="#53636D",
             va="bottom",
         )
         top = layout[1].subgridspec(1, 3, width_ratios=[1, 6, 1])
         ax = fig.add_subplot(top[0, 1])
-        # Plot saved coordinates directly; groups control marker shape.
-        for group, marker in [(0, "o"), (1, "^")]:
-            points = umap[umap.groups.eq(group)]
-            ax.scatter(
-                points.UMAP1,
-                points.UMAP2,
-                c=points.datatype.map(COLORS),
-                marker=marker,
-                s=22 if group == 0 else 29,
-                alpha=0.9,
-                linewidths=0,
-            )
-        ax.set(xlabel="UMAP 1", ylabel="UMAP 2")
-        ax.tick_params(labelbottom=False, labelleft=False, length=0)
-        ax.set_axisbelow(True)
-        ax.grid(color="#D5D5D5", linewidth=0.6)
-        ax.spines[["top", "right"]].set_visible(False)
-        ax.set_box_aspect(0.5)
-        handles = [
-            Line2D(
-                [],
-                [],
-                marker="o",
-                color=COLORS[source],
-                linestyle="none",
-                label=label,
-                markersize=6,
-            )
-            for source, label in [("Real", "Empirical"), ("Generated", "Generated")]
-        ] + [
-            Line2D(
-                [],
-                [],
-                marker=marker,
-                color="#222222",
-                linestyle="none",
-                label=f"Group {group}",
-                markersize=6,
-            )
-            for group, marker in [(0, "o"), (1, "^")]
-        ]
+        draw_umap(ax, umap)
         legend = layout[2].get_position(fig)
         fig.legend(
-            handles=handles,
+            handles=legend_handles(),
             loc="center",
             ncol=4,
             frameon=False,
@@ -181,23 +138,12 @@ def draw_figure(
                 validate="one_to_one",
             )
             lower, upper = metric_limits(d, metric)
-            ax.hlines(y, lower, upper, color="#A8A8A8", linewidth=1)
-            ax.hlines(y, d.low, d.high, color=GREEN, linewidth=2)
-            ax.scatter(d["mean"], y, color=GREEN, s=26, zorder=3)
-            if lower < 0:
-                ax.axvline(0, color="#A8A8A8", linestyle="--", linewidth=0.7)
-            padding = 0.08 * (upper - lower)
             ticks = (
                 np.arange(lower, upper + 0.01, 0.5)
                 if lower < 0
                 else [0, upper / 2, upper]
             )
-            ax.set(xlim=(lower - padding, upper + padding), xticks=ticks)
-            ax.xaxis.set_major_formatter(FuncFormatter(lambda value, _: f"{value:g}"))
-            ax.tick_params(axis="x", labelsize=9)
-            ax.tick_params(axis="y", left=False, labelleft=False)
-            ax.spines[["top", "right", "left"]].set_visible(False)
-            ax.set_title(label, fontsize=10.5, weight="bold", pad=13)
+            draw_metric(ax, d, y, (lower, upper), ticks, label)
 
         header = layout[3].get_position(fig)
         fig.text(

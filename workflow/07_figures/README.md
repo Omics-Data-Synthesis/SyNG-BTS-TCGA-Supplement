@@ -21,6 +21,20 @@ Each cohort produces `<dataset_id>_miRNA_fidelity.pdf` and `.png` in `figures/`.
 The miRNA renderer also accepts `--output-dir PATH`. It reads the source tables
 once for the cohort batch and draws the saved UMAP coordinates without refitting.
 
+Render the selected RNA-seq fidelity figure:
+
+```bash
+uv run workflow/07_figures/figure_fidelity_rnaseq.py
+```
+
+This writes `figures/RNA_selected_fidelity_UMAP.pdf` and `.png` and also accepts
+`--output-dir PATH`. The summary and UMAP panels use the same `rnaseq` selection
+as the source-ARI overview. One-group cohorts appear first, followed by two-group
+cohorts; cohorts are alphabetical within each group. Each metric's scale is shared
+across the selected cohorts. UMAP coordinates are fitted separately by cohort and
+are not comparable across panels. Circles represent one-group samples; circles
+and triangles distinguish groups 0 and 1 for two-group cohorts.
+
 ## Inputs and selections
 
 Stage 05 writes `results/fidelity.csv` (one row per configuration and subsampling
