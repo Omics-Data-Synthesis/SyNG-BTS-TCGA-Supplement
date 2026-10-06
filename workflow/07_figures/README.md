@@ -1,5 +1,16 @@
 # Fidelity figures
 
+Build all three fidelity figure families from the repository root:
+
+```bash
+uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-rnaseq
+```
+
+Stage 07 uses Python only. The selected fidelity figures need stage 05 results;
+they do not need the stage 06 learning-curve archive. Running stage 07 without
+`--figures` builds every registered figure, including learning curves, and requires
+all of their inputs.
+
 Run the source-ARI figure independently from the repository root:
 
 ```bash

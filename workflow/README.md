@@ -32,18 +32,19 @@ baseline, and negative values indicate below-chance agreement, not automatically
 mixing. This measure alone does not establish distributional equivalence.
 
 Stage 07 keeps one `figure_*.py` module per figure, each exposing `main()`, registered in the
-`FIGURES` list in `run.py`. `figure_cvae_architecture.py` is a schematic of
-`syng_bts.helper_models.CVAE`, so it reads nothing from `results/`. The fidelity figures
-stay in `ari_figure_code.R`, `fidelity_RNA_code.R`, and `fidelity_miRNA_code.R`.
-`figure_fidelity.py` runs those scripts, and calls the miRNA script once per `mirna` row
-in `config/datasets.tsv`. `uv run workflow/07_figures/run.py` needs `Rscript` and `renv::restore()`.
+`FIGURES` mapping in `run.py`. All rendering uses Python. `figure_cvae_architecture.py`
+is a schematic of `syng_bts.helper_models.CVAE`, so it reads nothing from `results/`.
+The source-ARI, miRNA, and RNA-seq fidelity renderers consume stage 05 tables and
+`config/fidelity_figures.tsv`. Build these independently of stage 06 with
+`uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-rnaseq`.
+The [figure guide](07_figures/README.md) documents inputs and individual commands.
 
 Figure files are named for what they show (`cvae_architecture.pdf`), never for a manuscript
 number. The numbering is still changing, and a stale `fig1.pdf` is worse than no name at all.
 
-Stages 07 and 08 read stage 06's completed numerical archive. They do not fit
-curves. Stage 08 replaces all generated plot JSON, then validates and rebuilds
-the manifest. See [SyntheSize.md](SyntheSize.md) for the fitting exports, cache
+The stage 07 learning-curve renderer and stage 08 read stage 06's completed
+numerical archive. They do not fit curves. Stage 08 replaces all generated plot
+JSON, then validates and rebuilds the manifest. See [SyntheSize.md](SyntheSize.md) for the fitting exports, cache
 invalidation and the commands to rerun only the learning-curve analysis.
 
 

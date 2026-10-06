@@ -7,31 +7,39 @@ FIGURES below and it gets built with the rest.
 Figure files are named for what they show, not for their manuscript number, because
 the numbering is still changing.
 
-The fidelity figures are the R scripts in this directory. ``figure_fidelity.py``
-runs them, and needs ``Rscript`` plus ``renv::restore()``.
-
 Run from the repository root:
 
     uv run workflow/07_figures/run.py
+    uv run workflow/07_figures/run.py --figures source-ari
 """
 
+import argparse
+
 import figure_cvae_architecture
-import figure_fidelity
+import figure_fidelity_mirna
+import figure_fidelity_rnaseq
 import figure_learning_curves
+import figure_source_ari
 
-# (label, module) pairs, built in this order.
-FIGURES = [
-    ("cVAE architecture", figure_cvae_architecture),
-    ("SyntheSize learning curves", figure_learning_curves),
-    ("fidelity figures", figure_fidelity),
-]
+# Command names and modules, built in this order by default.
+FIGURES = {
+    "cvae-architecture": figure_cvae_architecture,
+    "learning-curves": figure_learning_curves,
+    "source-ari": figure_source_ari,
+    "fidelity-mirna": figure_fidelity_mirna,
+    "fidelity-rnaseq": figure_fidelity_rnaseq,
+}
 
 
-def main() -> None:
-    for label, module in FIGURES:
-        print(f"building {label}")
-        module.main()
+def main(figures: list[str] | None = None) -> None:
+    for name in FIGURES if figures is None else figures:
+        print(f"building {name}", flush=True)
+        FIGURES[name].main()
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--figures", nargs="+", choices=FIGURES, help="Build only the named figures."
+    )
+    main(parser.parse_args().figures)

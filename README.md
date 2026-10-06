@@ -21,7 +21,11 @@ uv sync                       # Python
 Rscript -e 'renv::restore()'  # R
 ```
 
-Stage 07 needs both environments. Python (`matplotlib`, `pandas`, and the rest of `pyproject.toml`) draws the architecture schematic and the SyntheSize learning curves. R draws the fidelity figures, and those scripts depend on `ggplot2`, `dplyr`, `tidyr`, `scales`, and `patchwork`, which are recorded in `renv.lock` along with the earlier-stage packages (`DANA`, `DESeq2`, `limma`, and the rest of that tree). `Rscript` has to be on `PATH`. Add a package for a later stage with `uv add` or `renv::install` followed by `renv::snapshot`, as described below.
+Stage 07 renders all figures in Python using the environment in `pyproject.toml`
+and `uv.lock`. R remains required by earlier analysis stages, including DANA and
+limma in stage 05; those stages need `Rscript` on `PATH` and the environment in
+`renv.lock`. Add a package with `uv add` or `renv::install` followed by
+`renv::snapshot`, as described below.
 
 
 ### Python with uv
@@ -90,6 +94,7 @@ Add each file together with the stage that reads it. Currently present: `tcga_co
 | `generate.tsv`, `generate_models.tsv`, `generate_norms.tsv`, `generate_train.tsv`, `generate_off_aug.tsv` | Shared generate() settings, per-(modality, grouping) CVAE/VAE lists, training schedules, RNA off_aug grid, and raw/TC/DESeq suffixes. Seed is `SEED` in `04_generate/run.py`. Read by stages 04–06. |
 | `mirna_coordinates.csv`, `fidelity.tsv` | miRBase-style genomic coordinates for DANA (dots in `name` become hyphens at load) and fidelity draw / threshold settings. Seed is `SEED` in `05_fidelity/run.py`. Read by stage 05. |
 | `synthesize.tsv` | SyntheSize draw count, sample-size grid, and classifiers. Seed is `SEED` in `06_synthesize/run.py`. Read by stage 06. |
+| `fidelity_figures.tsv` | Normalization, model, and augmentation settings for the source-ARI and fidelity panels. Read by stage 07. |
 
 Formats: Ideally use **TSV** when there is one row per cohort, something like **YAML** for nested or optional parameters.
 
@@ -126,6 +131,16 @@ One row per published output. Example structure:
 | Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
 | Interactive learning curves | `08_website/run.py` | `results/learning_curve_fits.json` → `website/plots/**/data.json` |
+
+Build only the source-ARI, miRNA, and RNA-seq fidelity figures with:
+
+```bash
+uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-rnaseq
+```
+
+This produces PDF and 300-dpi PNG outputs from stage 05 tables and does not require
+the stage 06 learning-curve archive. See the [figure guide](workflow/07_figures/README.md)
+for source-table regeneration, configuration selection, and individual commands.
 
 
 ## Interactive website
