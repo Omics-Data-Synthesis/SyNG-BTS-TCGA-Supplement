@@ -1,4 +1,61 @@
-# Fidelity figures
+# Manuscript figures
+
+## Learning-curve agreement
+
+Build the manuscript learning-curve overview, selected comparisons and supporting
+tables from the completed stage 06 archive:
+
+```bash
+uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement
+```
+
+The standalone entry point is
+`uv run --locked workflow/07_figures/figure_learning_curve_agreement.py`.
+It accepts `--output-dir PATH` for figures and `--results-dir PATH` for derived
+tables and provenance. Defaults are `figures/` and `results/`.
+The renderer reads only this repository's archive and configuration; it requires
+neither patient-level inputs nor another repository. Archive validation checks
+scientific configuration and the hashes of `curves.csv` and `curve_fits.csv`.
+It does not evaluate classifiers or refit learning curves.
+
+`config/learning_curve_figures.tsv` selects the comparison columns in file order.
+Each row specifies dataset, normalization, generative model, offline augmentation
+and a display label. The overview includes every archived binary task and
+configuration. The selected comparisons use HNSC raw/cVAE-1:50, HNSC
+TC/cVAE-1:50 and COAD RNA TC/cVAE-1:100, all without an AE head.
+
+| Output under `figures/` | Content |
+|---|---|
+| `learning_curve_agreement.pdf`, `.png` | Task-by-classifier signed and absolute AUC gaps, medians across configurations |
+| `learning_curve_comparison_auc.pdf`, `.png` | Selected AUC curves with archived fitted-mean intervals |
+| `learning_curve_comparison_f1_score.pdf`, `.png` | Selected macro-F1 curves with draw SDs and fitted-mean intervals |
+| `learning_curve_comparison_accuracy.pdf`, `.png` | Selected accuracy curves with draw SDs and fitted-mean intervals |
+| `learning_curve_agreement_configurations.pdf` | One page per task with all configuration-level AUC gaps |
+| `learning_curve_agreement_<dataset_id>.png` | Configuration-page previews for the selected tasks |
+
+PNGs are 300 dpi; PDFs contain vector plots. Blue denotes empirical data and
+orange generated data. Dotted lines mark the empirical subset-size limit;
+the region to the right contains generated-only evaluations. Lines and bands
+come from the archived predictions. Bands are approximate pointwise 95%
+intervals for the fitted mean; error bars in macro-F1 and accuracy panels show
+±1 SD across draw means. Score axes include all displayed values without clipping.
+
+`results/tables/learning_curve_agreement.csv` retains every configuration,
+classifier and metric comparison. The signed and absolute gaps integrate
+piecewise-linear observed mean scores over the shared subset-size range,
+divided by its width. Sign crossings are accounted for in the absolute integral.
+No source is extrapolated, and these descriptive gaps are not equivalence tests
+or sample-size recommendation thresholds. Positive signed gaps mean higher
+within-generated performance. Empirical series reused across generator
+configurations are not independent empirical experiments.
+
+`results/learning_curve_agreement_summary.json` records aggregate summaries,
+archive provenance, source CSV hashes and the figure-selection configuration
+hash. These derived results follow the repository's existing ignored-results
+policy. The original per-configuration renderer remains available through
+`--figures learning-curves`.
+
+## Fidelity figures
 
 Build all three fidelity figure families from the repository root:
 

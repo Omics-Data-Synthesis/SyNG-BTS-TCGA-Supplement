@@ -18,6 +18,7 @@ import argparse
 import figure_cvae_architecture
 import figure_fidelity_mirna
 import figure_fidelity_rnaseq
+import figure_learning_curve_agreement
 import figure_learning_curves
 import figure_source_ari
 
@@ -25,6 +26,7 @@ import figure_source_ari
 FIGURES = {
     "cvae-architecture": figure_cvae_architecture,
     "learning-curves": figure_learning_curves,
+    "learning-curve-agreement": figure_learning_curve_agreement,
     "source-ari": figure_source_ari,
     "fidelity-mirna": figure_fidelity_mirna,
     "fidelity-rnaseq": figure_fidelity_rnaseq,

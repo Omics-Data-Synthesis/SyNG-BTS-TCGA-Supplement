@@ -103,6 +103,7 @@ uv run --locked workflow/06_synthesize/run.py --workers 1
 # Rendering only: no classifier evaluation or fitting.
 uv run --locked workflow/07_figures/figure_learning_curves.py
 uv run --locked workflow/07_figures/figure_learning_curves.py --metric auc
+uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement
 uv run --locked workflow/08_website/run.py
 
 # Same dependency-free validation performed by Pages CI.
@@ -110,6 +111,9 @@ uv run --locked python -S workflow/08_website/run.py --manifest-only
 uv run --locked python -m http.server --directory website 8000
 ```
 
+The agreement command builds the manuscript overview, selected comparisons and
+shared-range gap table from the same archive. Figure selections are recorded in
+`config/learning_curve_figures.tsv`; see the [figure guide](07_figures/README.md).
 The AUC command renders all configured AUC combinations, including HNSC when its
 inputs are available. These commands do not regenerate data or run fidelity
 analyses. Stage 06 reports missing generated files; inspect the counts and log

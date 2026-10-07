@@ -39,6 +39,15 @@ The source-ARI, miRNA, and RNA-seq fidelity renderers consume stage 05 tables an
 `uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-rnaseq`.
 The [figure guide](07_figures/README.md) documents inputs and individual commands.
 
+The `learning-curve-agreement` figure family builds the manuscript overview,
+selected source overlays, configuration heatmaps and comparison table from stage
+06. Run `uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement`.
+Selections live in `config/learning_curve_figures.tsv`; outputs use descriptive
+names under `figures/`, with the derived comparison CSV in `results/tables/` and
+summary provenance in `results/learning_curve_agreement_summary.json`. Shared-range
+gap summaries use interpolated observed means. Curve displays use the archived
+predictions without refitting.
+
 Figure files are named for what they show (`cvae_architecture.pdf`), never for a manuscript
 number. The numbering is still changing, and a stale `fig1.pdf` is worse than no name at all.
 

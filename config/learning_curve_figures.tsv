@@ -1,0 +1,4 @@
+dataset_id	norm	model	off_aug	label
+HNSC_anatomic_organ_subdivision	raw	CVAE1-50	none	HNSC miRNA
+HNSC_anatomic_organ_subdivision	TC	CVAE1-50	none	HNSC miRNA
+RNA_COAD_tumor_status	TC	CVAE1-100	none	COAD RNA
