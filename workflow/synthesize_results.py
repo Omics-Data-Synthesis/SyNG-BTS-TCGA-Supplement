@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-PACKAGE_VERSION = "3.6.0"
+PACKAGE_VERSION = "3.6.1"
 FORMAT_VERSION = 1
 FIT_API = "syng_bts.fit_sample_sizes"
 ARCHIVE_NAME = "learning_curve_fits.json"

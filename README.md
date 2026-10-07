@@ -155,7 +155,7 @@ uv run --locked python -m http.server --directory website 8000
 GitHub Pages deployment is configured in `.github/workflows/pages.yml` from the `website/` directory (not `/docs`). Enable it once under **Settings → Pages → Source: GitHub Actions**. After deployment, the expected URL is `https://Omics-Data-Synthesis.github.io/SyNG-BTS-TCGA-Supplement/`.
 
 Stage 06 uses the public `syng_bts.fit_sample_sizes` API from the pinned PyPI
-release **3.6.0**. Stages 07 and 08 consume its archived numerical results; neither
+release **3.6.1**. Stages 07 and 08 consume its archived numerical results; neither
 aggregates metrics or fits curves. See [workflow/SyntheSize.md](workflow/SyntheSize.md)
 for the exports, cache rules and manual rerun commands.
 

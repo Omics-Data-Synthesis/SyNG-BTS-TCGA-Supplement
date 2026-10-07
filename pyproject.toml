@@ -9,7 +9,7 @@ requires-python = ">=3.12,<3.14"
 # Pinned with == because this repository is a producing record, not a library.
 # TODO: confirm these are the versions used for the published runs before release.
 dependencies = [
-    "syng-bts==3.6.0",
+    "syng-bts==3.6.1",
     "h5py>=3.0",
     "pandas>=1.5",
     # Upper bound required: numba (via syng-bts -> umap-learn -> pynndescent) caps

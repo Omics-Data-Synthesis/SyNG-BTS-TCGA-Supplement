@@ -2,7 +2,7 @@
 
 Stage 06 evaluates classifiers with the existing seed (42), candidate-size grid,
 class proportions and draw settings in `config/synthesize.tsv`. It passes the
-per-draw metrics to **SyNG-BTS 3.6.0** `fit_sample_sizes` for each source and metric.
+per-draw metrics to **SyNG-BTS 3.6.1** `fit_sample_sizes` for each source and metric.
 The package averages rows by method and candidate subset size, sorts sizes, and
 fits `1 - a - b*n**c` with weights `i/m`. Approximate pointwise 95% confidence
 intervals use the fitted-parameter covariance and parameter derivatives. These
