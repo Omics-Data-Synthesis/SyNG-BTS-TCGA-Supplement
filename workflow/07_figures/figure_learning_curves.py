@@ -135,7 +135,7 @@ def draw_combo(
             ax.grid(True, alpha=0.25, linewidth=0.6)
             ax.set_axisbelow(True)
 
-    fig.suptitle(title, fontsize=11, y=1.01)
+    fig.suptitle(title, fontsize=11)
     fig.tight_layout()
     return fig
 

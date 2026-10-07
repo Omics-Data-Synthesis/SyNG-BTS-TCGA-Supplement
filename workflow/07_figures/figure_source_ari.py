@@ -112,8 +112,7 @@ def draw_figure(mirna: pd.DataFrame, rnaseq: pd.DataFrame, n_draws: int) -> Figu
             0.025,
             0.065,
             f"Points and labels: means across {n_draws} subsampling draws. "
-            "Zero is the chance-adjusted agreement baseline; "
-            "negative values indicate below-chance agreement.\n"
+            "Zero is the chance-adjusted agreement baseline.\n"
             f"RNA: {rna_settings}. {augmentation}",
             fontsize=9,
             color="#555555",
