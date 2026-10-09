@@ -128,7 +128,7 @@ One row per published output. Example structure:
 | miRNA fidelity, one figure per cohort | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
 | RNA-seq selected fidelity and UMAP | `07_figures/run.py` | `results/fidelity.csv`, `results/umap.csv` |
 | SyntheSize learning curves | `07_figures/figure_learning_curves.py` | `results/learning_curve_fits.json` |
-| Learning-curve agreement overview and selected comparisons | `07_figures/figure_learning_curve_agreement.py` | `results/learning_curve_fits.json`, `config/learning_curve_figures.tsv` |
+| Learning-curve agreement overview and selected comparisons | `07_figures/figure_learning_curve_agreement.py` | `results/learning_curve_fits.json`, `results/fidelity.csv`, `config/learning_curve_figures.tsv` |
 | Learning-curve comparison table and configuration heatmaps | `07_figures/figure_learning_curve_agreement.py` | Archived observed means → `results/tables/learning_curve_agreement.csv` and descriptive figure files |
 | Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
 | Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
@@ -144,8 +144,8 @@ This produces PDF and 300-dpi PNG outputs from stage 05 tables and does not requ
 the stage 06 learning-curve archive. See the [figure guide](workflow/07_figures/README.md)
 for source-table regeneration, configuration selection, and individual commands.
 
-Build the manuscript learning-curve agreement figures and comparison table from
-the completed stage 06 archive with:
+Build the manuscript learning-curve agreement figures and comparison tables from
+the completed stage 06 archive and stage 05 fidelity results with:
 
 ```bash
 uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement
@@ -154,6 +154,11 @@ uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement
 This writes descriptively named files under `figures/`, the comparison CSV under
 `results/tables/` and `results/learning_curve_agreement_summary.json`. It uses
 archived observations and predictions without rerunning classifiers or fitting.
+The four selected configurations have matching AUC, macro-F1 and accuracy plots
+over shared support, plus full-source-range supplementary pages. Source ARI
+labels and the selected fidelity table use exact configuration matches to the
+stage 05 results. See the [figure guide](workflow/07_figures/README.md) for outputs
+and interpretation of source-only support.
 
 
 ## Interactive website

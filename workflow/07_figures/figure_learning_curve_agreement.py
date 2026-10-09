@@ -20,11 +20,47 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "workflow"))
 import itertools
 
-from synthesize_results import file_hash, read_archive
-
 SELECTIONS = ROOT / "config" / "learning_curve_figures.tsv"
 KEYS = ("dataset_id", "modality", "norm", "model", "off_aug", "method", "metric_name")
 METHODS = ("LOGIS", "SVM", "KNN", "RF", "XGB")
+
+
+def selected_fidelity(selections, root=ROOT):
+    """Match full configuration keys and average unrounded stage 05 draws."""
+    import pandas as pd
+    from fidelity_data import KEYS as FIDELITY_KEYS
+    from fidelity_data import read_fidelity, select_configurations
+
+    settings = pd.DataFrame(selections)
+    settings["AE_head_num"] = settings["AE_head_num"].astype(int)
+    if settings.duplicated(FIDELITY_KEYS).any():
+        raise ValueError("Duplicate selected fidelity configurations")
+    selected = select_configurations(
+        read_fidelity(root), settings, "learning-curve fidelity"
+    )
+    metrics = ["source_ari", "ccc_log10_pvalue"]
+    if not all(math.isfinite(v) for v in selected[metrics].to_numpy().flat):
+        raise ValueError("Missing or nonfinite selected fidelity metric")
+    result = []
+    for selection in settings.to_dict("records"):
+        rows = selected[
+            (selected[FIDELITY_KEYS] == pd.Series(selection)[FIDELITY_KEYS]).all(axis=1)
+        ]
+        result.append({
+            **selection,
+            "n_fidelity_draws": len(rows),
+            "mean_source_ari": statistics.mean(rows.source_ari),
+            "mean_ccc_log10_pvalue": statistics.mean(rows.ccc_log10_pvalue),
+        })
+    return result
+
+
+def case_support(real, generated, full_support=False):
+    """Shared or union support, derived from each source's observed endpoints."""
+    r, g = real["observed"], generated["observed"]
+    if full_support:
+        return min(r[0]["n"], g[0]["n"]), max(r[-1]["n"], g[-1]["n"])
+    return max(r[0]["n"], g[0]["n"]), min(r[-1]["n"], g[-1]["n"])
 
 
 def interpolate(observed, n):
@@ -63,7 +99,7 @@ def compare(real, generated):
 def main(output_dir=None, results_dir=None):
     output_dir = Path(output_dir) if output_dir is not None else ROOT / "figures"
     results_dir = Path(results_dir) if results_dir is not None else ROOT / "results"
-    archive = read_archive(ROOT)
+    archive = json.loads((ROOT / "results/learning_curve_fits.json").read_text())
     with SELECTIONS.open(newline="") as stream:
         selections = list(csv.DictReader(stream, delimiter="\t"))
     if not selections or len({tuple(row.items()) for row in selections}) != len(
@@ -93,7 +129,7 @@ def main(output_dir=None, results_dir=None):
                         for f in fits
                         if all(
                             f[k] == selection[k]
-                            for k in ("dataset_id", "norm", "model", "off_aug")
+                            for k in KEYS[:5]
                         )
                         and f["method"] == method
                         and f["metric_name"] == metric
@@ -103,6 +139,7 @@ def main(output_dir=None, results_dir=None):
                         raise ValueError(
                             f"Missing or duplicate selected curve: {selection}, {method}, {metric}, {source}"
                         )
+    fidelity = selected_fidelity(selections)
     index = {tuple(f[k] for k in KEYS) + (f["source"],): f for f in fits}
     rows = []
     for f in fits:
@@ -117,12 +154,17 @@ def main(output_dir=None, results_dir=None):
         writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
+    with (results_dir / "tables" / "selected_learning_curve_fidelity.csv").open(
+        "w", newline=""
+    ) as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(fidelity[0]), lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(fidelity)
     summary = {
-        "provenance": archive["provenance"],
-        "source_hashes": archive["tables"],
+        "source_archive": "results/learning_curve_fits.json",
         "completed_jobs": archive["counts"],
         "comparisons": len(rows),
-        "figure_selection_sha256": file_hash(SELECTIONS),
+        "selected_fidelity": fidelity,
     }
     unique_real = {}
     for f in fits:
@@ -172,12 +214,12 @@ def main(output_dir=None, results_dir=None):
     (results_dir / "learning_curve_agreement_summary.json").write_text(
         json.dumps(summary, indent=2) + "\n"
     )
-    plot(fits, rows, selections, output_dir)
+    plot(fits, rows, selections, fidelity, output_dir)
     print(f"Wrote learning-curve agreement figures to {output_dir}")
-    print(f"Wrote {len(rows)} comparisons and provenance to {results_dir}")
+    print(f"Wrote {len(rows)} comparisons and summaries to {results_dir}")
 
 
-def plot(fits, rows, selections, output_dir):
+def plot(fits, rows, selections, fidelity, output_dir):
     import matplotlib
     import numpy as np
 
@@ -251,159 +293,124 @@ def plot(fits, rows, selections, output_dir):
     fig.savefig(destination.with_suffix(".pdf"))
     plt.close(fig)
 
-    for metric in ("auc", "f1_score", "accuracy"):
-        plot_cases(
-            fits,
-            metric,
-            output_dir / f"learning_curve_comparison_{metric}",
-            selections,
-            draw_sd=metric != "auc",
-        )
+    from matplotlib.backends.backend_pdf import PdfPages
+
+    # Full-support counterparts are one PDF, ordered AUC / macro-F1 / accuracy.
+    with PdfPages(output_dir / "learning_curve_comparison_full_support.pdf") as pdf:
+        for metric in ("auc", "f1_score", "accuracy"):
+            fig = draw_cases(fits, metric, selections, fidelity)
+            destination = output_dir / f"learning_curve_comparison_{metric}"
+            fig.savefig(destination.with_suffix(".png"), dpi=300)
+            fig.savefig(destination.with_suffix(".pdf"))
+            plt.close(fig)
+            fig = draw_cases(fits, metric, selections, fidelity, full_support=True)
+            pdf.savefig(fig)
+            fig.savefig(output_dir / f"learning_curve_comparison_{metric}_full_support.png", dpi=300)
+            plt.close(fig)
     plot_configurations(rows, cohorts, selections, output_dir)
 
 
-def plot_cases(fits, metric, destination, selections, draw_sd=False):
+def draw_cases(fits, metric, selections, fidelity, full_support=False):
+    """Draw archived observations/predictions; no dense re-evaluation or refitting."""
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
+    from matplotlib.ticker import MaxNLocator
 
     fig, axes = plt.subplots(
-        5,
-        len(selections),
-        figsize=(3.5 * len(selections), 10),
-        sharex=True,
-        sharey=True,
-        squeeze=False,
+        5, len(selections), figsize=(3.15 * len(selections), 10.5),
+        sharex="col", sharey=True, squeeze=False,
     )
-    metric_label = {"auc": "AUC", "f1_score": "Macro-F1", "accuracy": "Accuracy"}[
-        metric
-    ]
+    metric_label = {"auc": "AUC", "f1_score": "Macro-F1", "accuracy": "Accuracy"}[metric]
     plotted_values = [0.0, 1.0]
     for col, selection in enumerate(selections):
-        ds, norm, model, off_aug = (
-            selection[k] for k in ("dataset_id", "norm", "model", "off_aug")
-        )
+        selected = [f for f in fits if all(f[k] == selection[k] for k in KEYS[:5])
+                    and f["metric_name"] == metric]
+        fid = next(f for f in fidelity if all(f[k] == selection[k] for k in KEYS[:5])
+                   and int(f["AE_head_num"]) == int(selection["AE_head_num"]))
         for row, method in enumerate(METHODS):
             ax = axes[row, col]
-            for source, color in (("real", "#2878B5"), ("generated", "#E58332")):
-                f = next(
-                    f
-                    for f in fits
-                    if f["dataset_id"] == ds
-                    and f["model"] == model
-                    and f["norm"] == norm
-                    and f["off_aug"] == off_aug
-                    and f["method"] == method
-                    and f["metric_name"] == metric
-                    and f["source"] == source
-                )
+            real = next(f for f in selected if f["method"] == method and f["source"] == "real")
+            generated = next(f for f in selected if f["method"] == method and f["source"] == "generated")
+            shared_lo, shared_hi = case_support(real, generated)
+            lo, hi = case_support(real, generated, full_support)
+            if full_support:
+                # Either source can have the larger observed range (BRCA: empirical).
+                for f, color in ((real, "#2878B5"), (generated, "#E58332")):
+                    first, last = f["observed"][0]["n"], f["observed"][-1]["n"]
+                    if first < shared_lo:
+                        ax.axvspan(first, shared_lo, color=color, alpha=0.07, linewidth=0)
+                    if last > shared_hi:
+                        ax.axvspan(shared_hi, last, color=color, alpha=0.07, linewidth=0)
+                ax.axvline(shared_hi, color=".5", linestyle=":", lw=0.8)
+            for f, color in ((real, "#2878B5"), (generated, "#E58332")):
                 obs, pred = f["observed"], f["predictions"]
-                plotted_values.extend(o["observed_mean"] for o in obs)
-                plotted_values.extend(
-                    p[k]
-                    for p in pred
-                    for k in ("predicted", "ci_low", "ci_high")
-                    if p[k] is not None
+                # Keep bracketing archived points for line segments crossing the window.
+                # No new observations or inverse-power predictions are computed.
+                for o in obs:
+                    if lo <= o["n"] <= hi:
+                        plotted_values.extend(o["observed_mean"] + sign * o["observed_std"]
+                                              for sign in (-1, 1))
+                plotted_values.extend(p[k] for p in pred
+                                      for k in ("predicted", "ci_low", "ci_high")
+                                      if p[k] is not None)
+                ax.errorbar(
+                    [o["n"] for o in obs], [o["observed_mean"] for o in obs],
+                    yerr=[o["observed_std"] for o in obs], fmt="o", color=color,
+                    ms=2.5, linewidth=0.6, capsize=1.3, zorder=3,
                 )
-                ax.plot(
-                    [o["n"] for o in obs],
-                    [o["observed_mean"] for o in obs],
-                    "o",
-                    color=color,
-                    ms=2.6,
-                )
-                if draw_sd:
-                    ax.errorbar(
-                        [o["n"] for o in obs],
-                        [o["observed_mean"] for o in obs],
-                        yerr=[o["observed_std"] for o in obs],
-                        fmt="none",
-                        color=color,
-                        linewidth=0.6,
-                        capsize=1.5,
-                        alpha=0.7,
-                    )
-                    plotted_values.extend(
-                        o["observed_mean"] + sign * o["observed_std"]
-                        for o in obs
-                        for sign in (-1, 1)
-                    )
-                ax.plot(
-                    [p["n"] for p in pred],
-                    [p["predicted"] for p in pred],
-                    color=color,
-                    lw=1.2,
-                )
+                ax.plot([p["n"] for p in pred], [p["predicted"] for p in pred],
+                        color=color, lw=1.15, zorder=2)
                 if f["interval_status"] == "ok":
-                    ax.fill_between(
-                        [p["n"] for p in pred],
-                        [p["ci_low"] for p in pred],
-                        [p["ci_high"] for p in pred],
-                        color=color,
-                        alpha=0.12,
-                        linewidth=0,
-                    )
-                if source == "real":
-                    boundary = obs[-1]["n"]
-                    ax.axvline(boundary, color=".55", linestyle=":", lw=0.8)
-                    ax.axvspan(boundary, 1000, color=".8", alpha=0.13)
-            ax.set_xlim(0, 1020)
-            ax.grid(alpha=0.16)
-            ax.set_xticks([0, 500, 1000])
+                    ax.fill_between([p["n"] for p in pred], [p["ci_low"] for p in pred],
+                                    [p["ci_high"] for p in pred], color=color,
+                                    alpha=0.09, linewidth=0, zorder=1)
+            # Exact bounds distinguish the shared range from any source-only support.
+            ax.set_xlim(lo, hi)
+            ax.xaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
+            ax.grid(alpha=0.15)
+            if metric == "auc":
+                ax.axhline(0.5, color=".65", linestyle=":", linewidth=0.6)
+            gap = compare(real, generated)
+            ax.text(0.97, 0.04,
+                    f"B {gap['signed_gap']:+.3f}   D {gap['absolute_gap']:.3f}",
+                    ha="right", transform=ax.transAxes, fontsize=8,
+                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1))
             if col == 0:
-                ax.set_ylabel(
-                    ("LR" if method == "LOGIS" else method) + "\n" + metric_label
-                )
+                ax.set_ylabel(("LR" if method == "LOGIS" else method) + "\n" + metric_label)
             if row == 0:
+                aug = (f"AE head ({selection['AE_head_num']} iterations)"
+                       if selection["off_aug"] == "AE_head" else "No AE head")
+                ari = fid["mean_source_ari"]
+                ari_text = f"{ari:.4f}" if abs(ari) >= 0.001 else f"{ari:.2g}"
                 ax.set_title(
-                    chr(65 + col)
-                    + "  "
-                    + selection["label"]
-                    + " · "
-                    + norm
-                    + "\n"
-                    + model.replace("CVAE1-", "cVAE 1:"),
-                    fontsize=11,
+                    f"{chr(65 + col)}  {selection['label']}",
+                    fontsize=10, fontweight="bold", pad=48,
+                )
+                ax.annotate(
+                    f"{selection['norm']} · {selection['model'].replace('CVAE1-', 'cVAE 1:')}\n"
+                    f"{aug}\nMean source ARI: {ari_text}",
+                    xy=(0.5, 1), xycoords="axes fraction", xytext=(0, 8),
+                    textcoords="offset points", ha="center", va="bottom", fontsize=10,
                 )
             if row == 4:
                 ax.set_xlabel("Candidate subset size")
-    # Preserve all displayed values, including intervals or SD bars outside [0,1].
-    axes[0, 0].set_ylim(
-        min(0.0, min(plotted_values) - 0.015), max(1.03, max(plotted_values) + 0.015)
-    )
-    fig.suptitle(
-        "Agreement depends on the configuration\nSelected examples; "
-        + ("no AE head; " if all(s["off_aug"] == "none" for s in selections) else "")
-        + "common "
-        + metric_label
-        + " scale",
-        fontsize=14,
-        y=0.995,
-    )
-    fig.legend(
-        handles=[
-            Line2D([0], [0], color=c, marker="o", label=l)
-            for c, l in (("#2878B5", "Empirical"), ("#E58332", "Generated"))
-        ],
-        loc="lower center",
-        ncol=2,
-        bbox_to_anchor=(0.5, 0.023),
-        frameon=False,
-    )
-    fig.text(
-        0.5,
-        0.008,
-        "Points: observed means."
-        + (" Error bars: ±1 draw SD." if draw_sd else "")
-        + " Lines/bands: archived fit and pointwise 95% fitted-mean interval.\nDotted line: empirical limit. Raw: marker-filtered and log-transformed, without depth normalization.",
-        ha="center",
-        fontsize=8,
-    )
-    fig.subplots_adjust(
-        top=0.91, bottom=0.11, left=0.07, right=0.985, hspace=0.2, wspace=0.12
-    )
-    fig.savefig(destination.with_suffix(".png"), dpi=300)
-    fig.savefig(destination.with_suffix(".pdf"))
-    plt.close(fig)
+    axes[0, 0].set_ylim(min(0.0, min(plotted_values) - 0.015),
+                        max(1.03, max(plotted_values) + 0.015))
+    fig.suptitle("Empirical–generated learning-curve comparisons\n"
+                 + ("Full observed source ranges" if full_support else "Shared observed subset-size ranges"),
+                 fontsize=13, y=0.995)
+    fig.legend(handles=[Line2D([0], [0], color=c, marker="o", label=l)
+                        for c, l in (("#2878B5", "Empirical"), ("#E58332", "Generated"))],
+               loc="lower center", ncol=2, bbox_to_anchor=(0.5, 0.051), frameon=False)
+    support_note = ("Pale blue/orange: empirical-only/generated-only support. Dotted boundary: upper shared limit."
+                    if full_support else "Each column uses its shared observed range; x-axis ranges differ between tasks.")
+    fig.text(0.5, 0.010,
+             "Points: observed means ±1 draw SD. Lines/bands: archived fit / pointwise 95% fitted-mean interval.\n"
+             + support_note + "\nB: signed average gap; D: absolute average gap. Both use shared observed means. ARI: mean of five fidelity draws.",
+             ha="center", fontsize=8)
+    fig.subplots_adjust(top=0.855, bottom=0.13, left=0.06, right=0.975,
+                        hspace=0.20, wspace=0.13)
+    return fig
 
 
 def plot_configurations(rows, cohorts, selections, output_dir):

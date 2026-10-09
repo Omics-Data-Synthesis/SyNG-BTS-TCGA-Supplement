@@ -12,33 +12,45 @@ uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement
 The standalone entry point is
 `uv run --locked workflow/07_figures/figure_learning_curve_agreement.py`.
 It accepts `--output-dir PATH` for figures and `--results-dir PATH` for derived
-tables and provenance. Defaults are `figures/` and `results/`.
-The renderer reads only this repository's archive and configuration; it requires
-neither patient-level inputs nor another repository. Archive validation checks
-scientific configuration and the hashes of `curves.csv` and `curve_fits.csv`.
+tables and summaries. Defaults are `figures/` and `results/`.
+The renderer reads this repository's stage 06 archive, stage 05 fidelity table
+and configurations; it requires
+neither patient-level inputs nor another repository. It reads
+`results/learning_curve_fits.json` directly and checks selected curve coverage
+and candidate-size/draw completeness.
 It does not evaluate classifiers or refit learning curves.
 
 `config/learning_curve_figures.tsv` selects the comparison columns in file order.
-Each row specifies dataset, normalization, generative model, offline augmentation
-and a display label. The overview includes every archived binary task and
-configuration. The selected comparisons use HNSC raw/cVAE-1:50, HNSC
-TC/cVAE-1:50 and COAD RNA TC/cVAE-1:100, all without an AE head.
+Each row specifies dataset, modality, normalization, generative model, offline
+augmentation, AE-head iteration count (0 for none), and a display label. The
+overview includes every archived binary task and configuration. Selected columns
+are BRCA miRNA TC/cVAE-1:5, HNSC miRNA raw/cVAE-1:50, HNSC miRNA TC/cVAE-1:50
+(all without an AE head), and COAD RNA TC/cVAE-1:50 with two AE-head iterations.
+Each column reports mean source ARI from its exact configuration in
+`results/fidelity.csv`, averaging the five unrounded subsampling draws. Missing
+configurations, incorrect AE-head counts, or incomplete draws are errors.
 
 | Output under `figures/` | Content |
 |---|---|
 | `learning_curve_agreement.pdf`, `.png` | Task-by-classifier signed and absolute AUC gaps, medians across configurations |
-| `learning_curve_comparison_auc.pdf`, `.png` | Selected AUC curves with archived fitted-mean intervals |
-| `learning_curve_comparison_f1_score.pdf`, `.png` | Selected macro-F1 curves with draw SDs and fitted-mean intervals |
-| `learning_curve_comparison_accuracy.pdf`, `.png` | Selected accuracy curves with draw SDs and fitted-mean intervals |
+| `learning_curve_comparison_auc.pdf`, `.png` | Selected AUC curves over shared support, with draw SDs, fitted-mean intervals, B/D and source ARI |
+| `learning_curve_comparison_f1_score.pdf`, `.png` | Matching shared-support macro-F1 curves |
+| `learning_curve_comparison_accuracy.pdf`, `.png` | Matching shared-support accuracy curves |
+| `learning_curve_comparison_full_support.pdf` | Three pages: AUC, macro-F1 and accuracy over full source ranges |
+| `learning_curve_comparison_<metric>_full_support.png` | PNG counterparts of the full-support PDF pages |
 | `learning_curve_agreement_configurations.pdf` | One page per task with all configuration-level AUC gaps |
 | `learning_curve_agreement_<dataset_id>.png` | Configuration-page previews for the selected tasks |
 
 PNGs are 300 dpi; PDFs contain vector plots. Blue denotes empirical data and
-orange generated data. Dotted lines mark the empirical subset-size limit;
-the region to the right contains generated-only evaluations. Lines and bands
-come from the archived predictions. Bands are approximate pointwise 95%
-intervals for the fitted mean; error bars in macro-F1 and accuracy panels show
-±1 SD across draw means. Score axes include all displayed values without clipping.
+orange generated data. Shared-support plots use each task's intersection of
+observed source ranges: BRCA 31–1,000, HNSC 19–569 and COAD 14–467. Full-support
+plots retain all observations; pale blue and pale orange mark empirical-only and
+generated-only support, respectively, and a dotted boundary marks the upper
+shared limit. Lines and bands connect archived predictions without refitting or new
+curve evaluations. Bands are approximate pointwise 95% intervals for the fitted
+mean; error bars in every metric show +-1 SD across draw means. Score axes preserve
+displayed values and intervals outside [0,1]. Generator fits use their full
+archived range even when their display is restricted to shared support.
 
 `results/tables/learning_curve_agreement.csv` retains every configuration,
 classifier and metric comparison. The signed and absolute gaps integrate
@@ -50,8 +62,10 @@ within-generated performance. Empirical series reused across generator
 configurations are not independent empirical experiments.
 
 `results/learning_curve_agreement_summary.json` records aggregate summaries,
-archive provenance, source CSV hashes and the figure-selection configuration
-hash. These derived results follow the repository's existing ignored-results
+the source archive path, completed-job counts and selected fidelity means.
+`results/tables/selected_learning_curve_fidelity.csv` records the exact
+selected configurations, draw counts, mean source ARI and mean DE-p-value CCC.
+These derived results follow the repository's existing ignored-results
 policy. The original per-configuration renderer remains available through
 `--figures learning-curves`.
 

@@ -1,4 +1,5 @@
-dataset_id	norm	model	off_aug	label
-HNSC_anatomic_organ_subdivision	raw	CVAE1-50	none	HNSC miRNA
-HNSC_anatomic_organ_subdivision	TC	CVAE1-50	none	HNSC miRNA
-RNA_COAD_tumor_status	TC	CVAE1-100	none	COAD RNA
+dataset_id	modality	norm	model	off_aug	AE_head_num	label
+BRCA_breast_carcinoma_estrogen_receptor_status	mirna	TC	CVAE1-5	none	0	BRCA miRNA-seq
+HNSC_anatomic_organ_subdivision	mirna	raw	CVAE1-50	none	0	HNSC miRNA-seq
+HNSC_anatomic_organ_subdivision	mirna	TC	CVAE1-50	none	0	HNSC miRNA-seq
+RNA_COAD_tumor_status	rnaseq	TC	CVAE1-50	AE_head	2	COAD RNA-seq
