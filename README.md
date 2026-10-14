@@ -151,7 +151,7 @@ the completed stage 06 archive and stage 05 fidelity results with:
 uv run --locked workflow/07_figures/run.py --figures learning-curve-agreement
 ```
 
-This writes descriptively named files under `figures/`, the comparison CSV under
+This writes descriptively named files under `figures/`, comparison and selection CSVs under
 `results/tables/` and `results/learning_curve_agreement_summary.json`. It uses
 archived observations and predictions without rerunning classifiers or fitting.
 The four selected configurations have matching AUC, macro-F1 and accuracy plots

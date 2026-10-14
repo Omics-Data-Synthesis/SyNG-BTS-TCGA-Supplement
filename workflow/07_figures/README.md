@@ -23,16 +23,39 @@ It does not evaluate classifiers or refit learning curves.
 `config/learning_curve_figures.tsv` selects the comparison columns in file order.
 Each row specifies dataset, modality, normalization, generative model, offline
 augmentation, AE-head iteration count (0 for none), and a display label. The
-overview includes every archived binary task and configuration. Selected columns
+overview selects one configuration per archived binary task by the lowest
+mean absolute AUC gap across all five classifiers. Both signed and absolute
+panels use that same configuration. Selection uses unrounded values; exact ties
+resolve lexicographically by the full configuration key. Incomplete classifier
+coverage is an error. This is retrospective selection within the evaluated grid,
+not a prospective configuration-selection validation. The median across all
+configurations is retained as Supplementary Figure S5. Selected comparison columns
 are BRCA miRNA TC/cVAE-1:5, HNSC miRNA raw/cVAE-1:50, HNSC miRNA TC/cVAE-1:50
 (all without an AE head), and COAD RNA TC/cVAE-1:50 with two AE-head iterations.
 Each column reports mean source ARI from its exact configuration in
 `results/fidelity.csv`, averaging the five unrounded subsampling draws. Missing
 configurations, incorrect AE-head counts, or incomplete draws are errors.
 
+Both agreement overviews and the configuration-level PDF pages use the same task
+order: miRNA first, then RNA, with increasing empirical cohort size within each
+modality and dataset identifier breaking ties. Compact `n=…` labels in overview
+rows and configuration-page titles give the total empirical cohort size after
+grouping and exclusions, before cross-validation splitting. Sizes come from the
+maximum observed subset size of each task's archived empirical series; all such
+series must agree. They are not capped at the shared-support upper limit or at
+the generated sample count. Configuration selection and numerical summaries
+are independent of this display order.
+Agreement row labels use fixed text columns so their middle-dot separators align
+vertically. Figure 6 omits AE-head status from the labels: all selected miRNA
+configurations omit the head, while both selected RNA configurations use two
+AE-head iterations, as stated in the caption. Configuration-level pages use a
+dagger (†) after the loss ratio to distinguish AE-head configurations; unmarked
+rows omit the head.
+
 | Output under `figures/` | Content |
 |---|---|
-| `learning_curve_agreement.pdf`, `.png` | Task-by-classifier signed and absolute AUC gaps, medians across configurations |
+| `learning_curve_agreement.pdf`, `.png` | Figure 6: task-by-classifier signed and absolute AUC gaps at one selected configuration per task |
+| `learning_curve_agreement_median.pdf`, `.png` | Supplementary Figure S5: medians across all configurations |
 | `learning_curve_comparison_auc.pdf`, `.png` | Selected AUC curves over shared support, with draw SDs, fitted-mean intervals, B/D and source ARI |
 | `learning_curve_comparison_f1_score.pdf`, `.png` | Matching shared-support macro-F1 curves |
 | `learning_curve_comparison_accuracy.pdf`, `.png` | Matching shared-support accuracy curves |
@@ -42,7 +65,27 @@ configurations, incorrect AE-head counts, or incomplete draws are errors.
 | `learning_curve_agreement_<dataset_id>.png` | Configuration-page previews for the selected tasks |
 
 PNGs are 300 dpi; PDFs contain vector plots. Blue denotes empirical data and
-orange generated data. Shared-support plots use each task's intersection of
+orange generated data. Each comparison subplot has separate colored B and D
+labels: B uses the overview's blue–white–red signed-gap scale, and D uses its
+yellow–orange–red absolute-gap scale. A compact horizontal legend band places
+the B colorbar on the left, empirical/generated source labels in the center,
+and the D colorbar on the right, with sparse ticks and metric units appended to
+each colorbar title on the same line. Column subtitles combine normalization,
+model and AE-head status on one line, with mean source ARI below. The two-iteration
+AE-head setting is specified in the captions and configuration table.
+Both AUC overviews, all configuration-level heatmaps,
+and all comparison metrics and support views use the same numerical color limits.
+Limits use the full configuration–classifier grid across AUC, macro-F1 and
+accuracy, rounded upward to the next 0.05: B is symmetric around zero and D
+starts at zero. For the current archive these limits are −0.45 to +0.45 for B
+and 0 to 0.45 for D. Backgrounds use opaque colormap colors so equal values have
+equal colors. Figure titles are descriptive; manuscript numbering stays in the
+captions and figure manifest.
+Typography is sized for placement at 180 mm width: essential labels and values
+are approximately 6–6.5 pt after scaling. Heatmap colorbar ticks explicitly include
+the shared limits. Comparison footers retain a short visual key; detailed
+definitions are given in the manuscript captions.
+Shared-support plots use each task's intersection of
 observed source ranges: BRCA 31–1,000, HNSC 19–569 and COAD 14–467. Full-support
 plots retain all observations; pale blue and pale orange mark empirical-only and
 generated-only support, respectively, and a dotted boundary marks the upper
@@ -62,7 +105,13 @@ within-generated performance. Empirical series reused across generator
 configurations are not independent empirical experiments.
 
 `results/learning_curve_agreement_summary.json` records aggregate summaries,
-the source archive path, completed-job counts and selected fidelity means.
+the source archive path, completed-job counts, selected fidelity means, and
+the Figure 6 selection criterion, configurations and selected-configuration
+metric summaries. `results/tables/learning_curve_selected_configurations.csv`
+records all 26 Figure 6 choices and their mean and maximum absolute AUC gaps.
+`results/tables/learning_curve_selected_agreement.csv` retains all three metrics
+for those same AUC-selected configurations (390 rows); other metrics are not
+used to reselect configurations. The all-grid summaries remain unchanged.
 `results/tables/selected_learning_curve_fidelity.csv` records the exact
 selected configurations, draw counts, mean source ARI and mean DE-p-value CCC.
 These derived results follow the repository's existing ignored-results

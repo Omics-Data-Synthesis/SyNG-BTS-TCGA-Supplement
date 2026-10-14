@@ -25,6 +25,88 @@ KEYS = ("dataset_id", "modality", "norm", "model", "off_aug", "method", "metric_
 METHODS = ("LOGIS", "SVM", "KNN", "RF", "XGB")
 
 
+def select_agreement_configurations(rows):
+    """Choose one complete configuration per task by mean AUC D, never |B|.
+
+    Exact ties resolve lexicographically by the full configuration key.
+    Selection uses unrounded values and is reused for both gaps and all metrics.
+    """
+    grouped = {}
+    for row in rows:
+        if row["metric_name"] == "auc":
+            grouped.setdefault(tuple(row[k] for k in KEYS[:5]), []).append(row)
+    tasks = {}
+    for key, group in sorted(grouped.items()):
+        if len(group) != len(METHODS) or {r["method"] for r in group} != set(METHODS):
+            raise ValueError(f"Expected all five classifiers exactly once: {key}")
+        if not all(math.isfinite(r[m]) for r in group for m in ("signed_gap", "absolute_gap")):
+            raise ValueError(f"Nonfinite agreement values: {key}")
+        tasks.setdefault(key[0], []).append({
+            **dict(zip(KEYS[:5], key)),
+            "mean_absolute_auc_gap": statistics.mean(r["absolute_gap"] for r in group),
+            "max_absolute_auc_gap": max(r["absolute_gap"] for r in group),
+        })
+    if not tasks:
+        raise ValueError("No AUC configurations available for selection")
+    return [{**min(tasks[ds], key=lambda r: r["mean_absolute_auc_gap"]),
+             "n_configurations_evaluated": len(tasks[ds]), "n_classifiers": len(METHODS)}
+            for ds in sorted(tasks, key=lambda ds: (ds.startswith("RNA_"), ds))]
+
+
+def empirical_sample_sizes(fits):
+    """Read full empirical cohort sizes from the archived observed size grids."""
+    sizes = {}
+    for fit in fits:
+        if fit["source"] != "real":
+            continue
+        ds = fit["dataset_id"]
+        n = max(point["n"] for point in fit["observed"])
+        if not math.isfinite(n) or n <= 0 or int(n) != n:
+            raise ValueError(f"Invalid empirical sample size for {ds}: {n}")
+        if ds in sizes and sizes[ds] != n:
+            raise ValueError(f"Inconsistent empirical sample sizes for {ds}")
+        sizes[ds] = int(n)
+    return sizes
+
+
+def agreement_overviews(rows, sample_sizes):
+    """Align both overviews by modality, empirical size, then dataset identifier."""
+    import numpy as np
+
+    selections = select_agreement_configurations(rows)
+    missing = {s["dataset_id"] for s in selections} - sample_sizes.keys()
+    if missing:
+        raise ValueError(f"Missing empirical sample sizes: {sorted(missing)}")
+    selections.sort(key=lambda s: (
+        ("mirna", "rnaseq").index(s["modality"]),
+        sample_sizes[s["dataset_id"]], s["dataset_id"],
+    ))
+    cohorts = [s["dataset_id"] for s in selections]
+    chosen = {tuple(s[k] for k in KEYS[:5]) for s in selections}
+    auc = [r for r in rows if r["metric_name"] == "auc"]
+    lookup = {(r["dataset_id"], r["method"]): r for r in auc
+              if tuple(r[k] for k in KEYS[:5]) in chosen}
+    selected = [np.array([[lookup[ds, method][measure] for method in METHODS]
+                          for ds in cohorts])
+                for measure in ("signed_gap", "absolute_gap")]
+    median = [np.array([[statistics.median(r[measure] for r in auc
+                         if r["dataset_id"] == ds and r["method"] == method)
+                         for method in METHODS] for ds in cohorts])
+              for measure in ("signed_gap", "absolute_gap")]
+    return cohorts, selections, selected, median
+
+
+def agreement_color_maps(rows):
+    """Full-grid limits across all metrics, shared by every agreement display."""
+    from matplotlib.cm import ScalarMappable
+    from matplotlib.colors import Normalize
+
+    signed_limit = math.ceil(max(abs(r["signed_gap"]) for r in rows) * 20) / 20 or 0.05
+    absolute_limit = math.ceil(max(r["absolute_gap"] for r in rows) * 20) / 20 or 0.05
+    return [ScalarMappable(norm=Normalize(-signed_limit, signed_limit), cmap="RdBu_r"),
+            ScalarMappable(norm=Normalize(0, absolute_limit), cmap="YlOrRd")]
+
+
 def selected_fidelity(selections, root=ROOT):
     """Match full configuration keys and average unrounded stage 05 draws."""
     import pandas as pd
@@ -166,6 +248,29 @@ def main(output_dir=None, results_dir=None):
         "comparisons": len(rows),
         "selected_fidelity": fidelity,
     }
+    overview_selections = select_agreement_configurations(rows)
+    chosen_keys = {tuple(s[k] for k in KEYS[:5]) for s in overview_selections}
+    chosen_rows = [r for r in rows if tuple(r[k] for k in KEYS[:5]) in chosen_keys]
+    for filename, records in (
+        ("learning_curve_selected_configurations.csv", overview_selections),
+        ("learning_curve_selected_agreement.csv", chosen_rows),
+    ):
+        with (results_dir / "tables" / filename).open("w", newline="") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(records[0]), lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(records)
+    summary["overview_selection"] = {
+        "criterion": "Minimum mean absolute AUC gap across all five classifiers, one configuration per task",
+        "tie_break": "Lexicographic full configuration key; unrounded values",
+        "interpretation": "Retrospective descriptive selection within the evaluated grid",
+        "configurations": overview_selections,
+        "metrics_at_auc_selected_configurations": {
+            metric: {"comparisons": sum(r["metric_name"] == metric for r in chosen_rows),
+                     "median_absolute_gap": statistics.median(
+                         r["absolute_gap"] for r in chosen_rows if r["metric_name"] == metric)}
+            for metric in ("auc", "f1_score", "accuracy")
+        },
+    }
     unique_real = {}
     for f in fits:
         if f["source"] == "real":
@@ -221,103 +326,157 @@ def main(output_dir=None, results_dir=None):
 
 def plot(fits, rows, selections, fidelity, output_dir):
     import matplotlib
-    import numpy as np
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     plt.rcParams.update(
         {
-            "font.size": 9,
+            # About 6.2 pt when the widest figure is placed at 180 mm.
+            "font.size": 11,
             "axes.spines.top": False,
             "axes.spines.right": False,
             "pdf.fonttype": 42,
         }
     )
-    cohorts = sorted(
-        {r["dataset_id"] for r in rows}, key=lambda ds: (ds.startswith("RNA_"), ds)
-    )
-    matrices = []
-    for measure in ("signed_gap", "absolute_gap"):
-        matrices.append(
-            np.array(
-                [
-                    [
-                        statistics.median(
-                            r[measure]
-                            for r in rows
-                            if r["dataset_id"] == ds
-                            and r["method"] == method
-                            and r["metric_name"] == "auc"
-                        )
-                        for method in METHODS
-                    ]
-                    for ds in cohorts
-                ]
-            )
-        )
-    fig, axes = plt.subplots(1, 2, figsize=(11, 9), layout="constrained")
-    labels = [
-        ("RNA" if ds.startswith("RNA_") else "miRNA")
-        + " · "
-        + ds.removeprefix("RNA_").split("_")[0]
-        for ds in cohorts
-    ]
-    limit = max(abs(matrices[0].min()), abs(matrices[0].max()))
-    for ax, data, title, cmap, low, high in zip(
-        axes,
-        matrices,
-        ("A  Signed AUC gap", "B  Absolute AUC gap"),
-        ("RdBu_r", "YlOrRd"),
-        (-limit, 0),
-        (limit, matrices[1].max()),
-    ):
-        im = ax.imshow(data, cmap=cmap, vmin=low, vmax=high, aspect="auto")
-        ax.set_xticks(range(5), ["LR", "SVM", "KNN", "RF", "XGB"])
-        ax.set_yticks(range(len(cohorts)), labels)
-        ax.set_title(title, loc="left", fontweight="bold")
-        ax.axhline(
-            sum(not ds.startswith("RNA_") for ds in cohorts) - 0.5,
-            color="white",
-            linewidth=2,
-        )
-        fig.colorbar(
-            im, ax=ax, shrink=0.65, label="Median across configurations (AUC units)"
-        )
-    fig.suptitle(
-        "Empirical–generated learning-curve agreement\nObserved means over the shared subset-size range",
-        fontsize=13,
-    )
-    destination = output_dir / "learning_curve_agreement"
-    fig.savefig(destination.with_suffix(".png"), dpi=300)
-    fig.savefig(destination.with_suffix(".pdf"))
-    plt.close(fig)
+    sample_sizes = empirical_sample_sizes(fits)
+    cohorts, overview_selections, selected, median = agreement_overviews(rows, sample_sizes)
+    gap_colors = agreement_color_maps(rows)
+    for matrices, is_selected in ((selected, True), (median, False)):
+        fig = draw_overview(cohorts, overview_selections, matrices, gap_colors, is_selected, sample_sizes)
+        stem = "learning_curve_agreement" if is_selected else "learning_curve_agreement_median"
+        fig.savefig(output_dir / f"{stem}.png", dpi=300)
+        fig.savefig(output_dir / f"{stem}.pdf")
+        plt.close(fig)
 
     from matplotlib.backends.backend_pdf import PdfPages
 
     # Full-support counterparts are one PDF, ordered AUC / macro-F1 / accuracy.
     with PdfPages(output_dir / "learning_curve_comparison_full_support.pdf") as pdf:
         for metric in ("auc", "f1_score", "accuracy"):
-            fig = draw_cases(fits, metric, selections, fidelity)
+            fig = draw_cases(fits, metric, selections, fidelity, gap_colors=gap_colors)
             destination = output_dir / f"learning_curve_comparison_{metric}"
             fig.savefig(destination.with_suffix(".png"), dpi=300)
             fig.savefig(destination.with_suffix(".pdf"))
             plt.close(fig)
-            fig = draw_cases(fits, metric, selections, fidelity, full_support=True)
+            fig = draw_cases(fits, metric, selections, fidelity, full_support=True, gap_colors=gap_colors)
             pdf.savefig(fig)
             fig.savefig(output_dir / f"learning_curve_comparison_{metric}_full_support.png", dpi=300)
             plt.close(fig)
-    plot_configurations(rows, cohorts, selections, output_dir)
+    plot_configurations(rows, cohorts, selections, output_dir, sample_sizes)
 
 
-def draw_cases(fits, metric, selections, fidelity, full_support=False):
+def aligned_row_labels(ax, rows, fontsize):
+    """Set proportional-font row labels in fixed columns with aligned separators."""
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.offsetbox import AnnotationBbox, DrawingArea
+    from matplotlib.text import Text
+
+    renderer = ax.figure.canvas.get_renderer()
+    font = FontProperties(size=fontsize)
+    def width(text):
+        return renderer.get_text_width_height_descent(text, font, ismath=False)[0] * 72 / ax.figure.dpi
+
+    widths = [max(width(row[col]) for row in rows) for col in range(len(rows[0]))]
+    separator_width = width(" · ")
+    total = sum(widths) + separator_width * (len(widths) - 1)
+    height = fontsize * 1.25
+    ax.set_yticks(range(len(rows)), [""] * len(rows))
+    for y, row in enumerate(rows):
+        area = DrawingArea(total, height, 0, 0)
+        x = 0
+        for col, value in enumerate(row):
+            area.add_artist(Text(x, height / 2, value, fontsize=fontsize, va="center"))
+            x += widths[col]
+            if col < len(widths) - 1:
+                area.add_artist(Text(x, height / 2, " · ", fontsize=fontsize, va="center"))
+                x += separator_width
+        ax.add_artist(AnnotationBbox(
+            area, (0, y), xycoords=ax.get_yaxis_transform(),
+            xybox=(-7, 0), boxcoords="offset points", box_alignment=(1, .5),
+            frameon=False, pad=0, annotation_clip=False,
+        ))
+
+
+def draw_overview(cohorts, selections, matrices, gap_colors, is_selected, sample_sizes):
+    import matplotlib.pyplot as plt
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.5 if is_selected else 11, 9), layout="constrained")
+    labels = [
+        ["RNA" if ds.startswith("RNA_") else "miRNA",
+         ds.removeprefix("RNA_").split("_")[0], f"n={sample_sizes[ds]}"]
+        for ds in cohorts
+    ]
+    if is_selected:
+        labels = [label + [s["norm"], s["model"].replace("CVAE1-", "1:")]
+                  for label, s in zip(labels, selections)]
+    for i, (ax, data, title, mapping) in enumerate(zip(
+        axes,
+        matrices,
+        ("A  Signed AUC gap", "B  Absolute AUC gap"),
+        gap_colors,
+    )):
+        im = ax.imshow(data, cmap=mapping.cmap, norm=mapping.norm, aspect="auto")
+        ax.set_xticks(range(5), ["LR", "SVM", "KNN", "RF", "XGB"])
+        if i == 0 or not is_selected:
+            aligned_row_labels(ax, labels, fontsize=11 if is_selected else 10)
+        else:
+            ax.set_yticks([])
+        ax.set_title(title, loc="left", fontweight="bold", fontsize=12)
+        if not is_selected:
+            ax.tick_params(labelsize=10)
+        ax.axhline(
+            sum(not ds.startswith("RNA_") for ds in cohorts) - 0.5,
+            color="white",
+            linewidth=2,
+        )
+        bar = fig.colorbar(
+            im, ax=ax, shrink=0.65, label="Average gap (AUC units)" if is_selected
+            else "Median across configurations (AUC units)"
+        )
+        set_heatmap_gap_ticks(bar, mapping)
+        if not is_selected:
+            bar.ax.tick_params(labelsize=10)
+            bar.ax.yaxis.label.set_size(10)
+    fig.suptitle(
+        ("Empirical–generated AUC agreement · selected configuration per task\n"
+         "Selection: lowest mean absolute AUC gap across all five classifiers"
+         if is_selected else
+         "Empirical–generated AUC agreement\nMedian across all evaluated configurations"),
+        fontsize=12,
+    )
+    fig.supxlabel("Observed means over shared subset-size support.\n" + (
+        "Retrospective selection; the same configuration supplies both panels."
+        if is_selected else "Nine configurations per miRNA task; 18 per RNA-seq task."),
+        fontsize=11 if is_selected else 10)
+    return fig
+
+
+def set_heatmap_gap_ticks(bar, mapping):
+    """Include the true endpoints, matching the comparison color scales."""
+    limit = mapping.norm.vmax
+    fractions = range(-3, 4) if mapping.norm.vmin < 0 else range(4)
+    ticks = [limit * fraction / 3 for fraction in fractions]
+    bar.set_ticks(ticks, labels=["0" if value == 0 else f"{value:.2f}" for value in ticks])
+
+
+def draw_cases(fits, metric, selections, fidelity, full_support=False, gap_colors=None):
     """Draw archived observations/predictions; no dense re-evaluation or refitting."""
     import matplotlib.pyplot as plt
     from matplotlib.lines import Line2D
+    from matplotlib.offsetbox import AnchoredOffsetbox, HPacker, TextArea
     from matplotlib.ticker import MaxNLocator
 
+    if gap_colors is None:
+        # Standalone callers use the same full-archive scale calculation as plot().
+        index = {tuple(f[k] for k in KEYS) + (f["source"],): f for f in fits}
+        rows = [{**dict(zip(KEYS, key[:-1])),
+                 **compare(index[key[:-1] + ("real",)], generated)}
+                for key, generated in index.items() if key[-1] == "generated"]
+        gap_colors = agreement_color_maps(rows)
+
     fig, axes = plt.subplots(
-        5, len(selections), figsize=(3.15 * len(selections), 10.5),
+        5, len(selections), figsize=(3.15 * len(selections), 10.65),
         sharex="col", sharey=True, squeeze=False,
     )
     metric_label = {"auc": "AUC", "f1_score": "Macro-F1", "accuracy": "Accuracy"}[metric]
@@ -371,26 +530,38 @@ def draw_cases(fits, metric, selections, fidelity, full_support=False):
             if metric == "auc":
                 ax.axhline(0.5, color=".65", linestyle=":", linewidth=0.6)
             gap = compare(real, generated)
-            ax.text(0.97, 0.04,
-                    f"B {gap['signed_gap']:+.3f}   D {gap['absolute_gap']:.3f}",
-                    ha="right", transform=ax.transAxes, fontsize=8,
-                    bbox=dict(facecolor="white", edgecolor="none", alpha=0.85, pad=1))
+            badges = []
+            for label, measure, mapping in zip(
+                ("B", "D"), ("signed_gap", "absolute_gap"), gap_colors
+            ):
+                value = gap[measure]
+                color = mapping.to_rgba(value)
+                luminance = sum(c * w for c, w in zip(color[:3], (0.2126, 0.7152, 0.0722)))
+                number = f"{value:+.3f}" if label == "B" else f"{value:.3f}"
+                badges.append(TextArea(f"{label} {number}", textprops=dict(
+                    fontsize=10.7, color="white" if luminance < 0.45 else "black",
+                    bbox=dict(facecolor=color, edgecolor="none", pad=2),
+                )))
+            ax.add_artist(AnchoredOffsetbox(
+                loc="lower right", child=HPacker(children=badges, align="baseline", pad=0, sep=8),
+                bbox_to_anchor=(0.97, 0.04), bbox_transform=ax.transAxes,
+                frameon=False, pad=0, borderpad=0,
+            ))
             if col == 0:
                 ax.set_ylabel(("LR" if method == "LOGIS" else method) + "\n" + metric_label)
             if row == 0:
-                aug = (f"AE head ({selection['AE_head_num']} iterations)"
-                       if selection["off_aug"] == "AE_head" else "No AE head")
+                aug = "AE head" if selection["off_aug"] == "AE_head" else "No AE head"
                 ari = fid["mean_source_ari"]
                 ari_text = f"{ari:.4f}" if abs(ari) >= 0.001 else f"{ari:.2g}"
                 ax.set_title(
                     f"{chr(65 + col)}  {selection['label']}",
-                    fontsize=10, fontweight="bold", pad=48,
+                    fontsize=11, fontweight="bold", pad=40,
                 )
                 ax.annotate(
-                    f"{selection['norm']} · {selection['model'].replace('CVAE1-', 'cVAE 1:')}\n"
-                    f"{aug}\nMean source ARI: {ari_text}",
+                    f"{selection['norm']} · {selection['model'].replace('CVAE1-', 'cVAE 1:')} · {aug}\n"
+                    f"Mean source ARI: {ari_text}",
                     xy=(0.5, 1), xycoords="axes fraction", xytext=(0, 8),
-                    textcoords="offset points", ha="center", va="bottom", fontsize=10,
+                    textcoords="offset points", ha="center", va="bottom", fontsize=11,
                 )
             if row == 4:
                 ax.set_xlabel("Candidate subset size")
@@ -401,27 +572,42 @@ def draw_cases(fits, metric, selections, fidelity, full_support=False):
                  fontsize=13, y=0.995)
     fig.legend(handles=[Line2D([0], [0], color=c, marker="o", label=l)
                         for c, l in (("#2878B5", "Empirical"), ("#E58332", "Generated"))],
-               loc="lower center", ncol=2, bbox_to_anchor=(0.5, 0.051), frameon=False)
+               loc="center", ncol=2, bbox_to_anchor=(0.5, 0.103), frameon=False)
+    for i, (left, mapping, label) in enumerate(zip(
+        (0.085, 0.665), gap_colors, ("B: signed average gap", "D: absolute average gap")
+    )):
+        cax = fig.add_axes([left, 0.097, 0.25, 0.012])
+        bar = fig.colorbar(mapping, cax=cax, orientation="horizontal")
+        if i == 0:
+            bar.set_ticks([mapping.norm.vmin, 0, mapping.norm.vmax],
+                          labels=[f"{mapping.norm.vmin:.2f}", "0", f"+{mapping.norm.vmax:.2f}"])
+        else:
+            ticks = [mapping.norm.vmax * fraction / 3 for fraction in range(4)]
+            bar.set_ticks(ticks, labels=[f"{value:.2f}" for value in ticks])
+        bar.set_label(f"{label} ({metric_label} units)", fontsize=10.7)
+        bar.ax.tick_params(labelsize=10.7, length=2)
     support_note = ("Pale blue/orange: empirical-only/generated-only support. Dotted boundary: upper shared limit."
                     if full_support else "Each column uses its shared observed range; x-axis ranges differ between tasks.")
+    # Detailed definitions are in the manuscript captions; keep the in-figure key brief.
     fig.text(0.5, 0.010,
-             "Points: observed means ±1 draw SD. Lines/bands: archived fit / pointwise 95% fitted-mean interval.\n"
-             + support_note + "\nB: signed average gap; D: absolute average gap. Both use shared observed means. ARI: mean of five fidelity draws.",
-             ha="center", fontsize=8)
-    fig.subplots_adjust(top=0.855, bottom=0.13, left=0.06, right=0.975,
+             "Points: mean ±1 draw SD. Bands: pointwise 95% fitted-mean intervals.\n" + support_note,
+             ha="center", fontsize=10.7)
+    # Allow the larger scale labels and footer to breathe within the same page size.
+    fig.subplots_adjust(top=0.866, bottom=0.170, left=0.065, right=0.975,
                         hspace=0.20, wspace=0.13)
     return fig
 
 
-def plot_configurations(rows, cohorts, selections, output_dir):
+def plot_configurations(rows, cohorts, selections, output_dir, sample_sizes):
     """One AUC page per task: expose all configurations behind Figure 6."""
     import matplotlib.pyplot as plt
     import numpy as np
     from matplotlib.backends.backend_pdf import PdfPages
 
     selected = [r for r in rows if r["metric_name"] == "auc"]
-    signed_limit = math.ceil(max(abs(r["signed_gap"]) for r in selected) * 20) / 20
-    absolute_limit = math.ceil(max(r["absolute_gap"] for r in selected) * 20) / 20
+    gap_colors = agreement_color_maps(rows)
+    signed_limit = gap_colors[0].norm.vmax
+    absolute_limit = gap_colors[1].norm.vmax
     with PdfPages(output_dir / "learning_curve_agreement_configurations.pdf") as pdf:
         for ds in cohorts:
             task = [r for r in selected if r["dataset_id"] == ds]
@@ -437,17 +623,15 @@ def plot_configurations(rows, cohorts, selections, output_dir):
                 (r["norm"], r["model"], r["off_aug"], r["method"]): r for r in task
             }
             labels = [
-                f"{n} · {m.replace('CVAE1-', '1:')} · {'no head' if a == 'none' else 'AE head'}"
+                [n, m.replace("CVAE1-", "1:") + ("†" if a == "AE_head" else "")]
                 for n, m, a in configs
             ]
             fig, axes = plt.subplots(1, 2, figsize=(12, 7), layout="constrained")
-            for ax, measure, title, cmap, low, high in zip(
+            for ax, measure, title, mapping in zip(
                 axes,
                 ("signed_gap", "absolute_gap"),
                 ("A  Signed AUC gap", "B  Absolute AUC gap"),
-                ("RdBu_r", "YlOrRd"),
-                (-signed_limit, 0),
-                (signed_limit, absolute_limit),
+                gap_colors,
             ):
                 values = np.array(
                     [
@@ -455,10 +639,10 @@ def plot_configurations(rows, cohorts, selections, output_dir):
                         for config in configs
                     ]
                 )
-                im = ax.imshow(values, cmap=cmap, vmin=low, vmax=high, aspect="auto")
-                ax.set_yticks(range(len(configs)), labels)
+                im = ax.imshow(values, cmap=mapping.cmap, norm=mapping.norm, aspect="auto")
+                aligned_row_labels(ax, labels, fontsize=11)
                 ax.set_xticks(range(5), ["LR", "SVM", "KNN", "RF", "XGB"])
-                ax.set_title(title, loc="left", fontweight="bold")
+                ax.set_title(title, loc="left", fontweight="bold", fontsize=12)
                 for i in range(1, len(configs)):
                     if configs[i][0] != configs[i - 1][0]:
                         ax.axhline(i - 0.5, color="white", linewidth=2)
@@ -478,14 +662,15 @@ def plot_configurations(rows, cohorts, selections, output_dir):
                             else f"{value:.3f}",
                             ha="center",
                             va="center",
-                            fontsize=8,
+                            fontsize=10.2,
                             color="white" if dark else "black",
                         )
-                fig.colorbar(im, ax=ax, shrink=0.65, label="Average gap (AUC units)")
+                bar = fig.colorbar(im, ax=ax, shrink=0.65, label="Average gap (AUC units)")
+                set_heatmap_gap_ticks(bar, mapping)
             cohort = ds.removeprefix("RNA_").split("_")[0]
             modality = "RNA-seq" if ds.startswith("RNA_") else "miRNA-seq"
             fig.suptitle(
-                f"Supplementary Figure S1 · {cohort} {modality}\n{ds}", fontsize=13
+                f"{cohort} {modality} · n={sample_sizes[ds]}\n{ds}", fontsize=13
             )
             pdf.savefig(fig)
             if ds in {s["dataset_id"] for s in selections}:
