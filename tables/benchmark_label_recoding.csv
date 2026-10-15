@@ -1,0 +1,30 @@
+Dataset identifier,Modality,Source clinical field,Recoding rule,Exclusions or missing-value handling,n₀,n₁,Retained n
+BLCA_histologic_subtype,miRNA-seq,histologic_subtype,Non-Papillary -> 0; Papillary -> 1,Missing labels excluded,294,138,432
+BRCA_breast_carcinoma_estrogen_receptor_status,miRNA-seq,er_status_by_ihc,Positive -> 0; Negative -> 1,Exclude Indeterminate; Missing labels excluded,887,257,1144
+COAD_tumor_status,miRNA-seq,tumor_status,WITH TUMOR -> 0; TUMOR FREE -> 1,Missing labels excluded,201,213,414
+ESCA_icd_o_3_histology,miRNA-seq,icd_o_3_histology,8070/3 -> 0; 8071/3 -> 0; 8083/3 -> 0; 8140/3 -> 1; 8211/3 -> 1; 8480/3 -> 1,Unmapped categories excluded,100,100,200
+HNSC_anatomic_organ_subdivision,miRNA-seq,anatomic_organ_subdivision,Alveolar Ridge -> 0; Buccal Mucosa -> 0; Floor of mouth -> 0; Hard Palate -> 0; Lip -> 0; Oral Cavity -> 0; Oral Tongue -> 0; Base of tongue -> 1; Hypopharynx -> 1; Larynx -> 1; Oropharynx -> 1; Tonsil -> 1,Unmapped categories excluded,347,222,569
+KICH_lymph_nodes_examined,miRNA-seq,lymph_nodes_examined,NO -> 0; YES -> 1,Missing labels excluded,47,44,91
+KIRC_ajcc_pathologic_tumor_stage,miRNA-seq,ajcc_pathologic_tumor_stage,I/II NOS -> 0; Stage 0 -> 0; Stage I -> 0; Stage IA -> 0; Stage IB -> 0; Stage II -> 0; Stage IIA -> 0; Stage IIB -> 0; Stage IIC -> 0; Stage III -> 1; Stage IIIA -> 1; Stage IIIB -> 1; Stage IIIC -> 1; Stage IV -> 1; Stage IVA -> 1; Stage IVB -> 1; Stage IVC -> 1,Unmapped categories excluded,371,242,613
+KIRP_ajcc_pathologic_tumor_stage,miRNA-seq,ajcc_pathologic_tumor_stage,I/II NOS -> 0; Stage 0 -> 0; Stage I -> 0; Stage IA -> 0; Stage IB -> 0; Stage II -> 0; Stage IIA -> 0; Stage IIB -> 0; Stage IIC -> 0; Stage III -> 1; Stage IIIA -> 1; Stage IIIB -> 1; Stage IIIC -> 1; Stage IV -> 1; Stage IVA -> 1; Stage IVB -> 1; Stage IVC -> 1,Unmapped categories excluded,211,84,295
+LAML_wbc_24hr_of_banking,miRNA-seq,wbc_24hr_of_banking,median_split >= 17 -> 1,Missing labels excluded,90,97,187
+LIHC_platelet_norm_range_lower,miRNA-seq,platelet_norm_range_lower,median_split >= 150 -> 1,Missing labels excluded,131,221,352
+LUAD_initial_pathologic_dx_year,miRNA-seq,initial_pathologic_dx_year,median_split >= 2010 -> 1,Missing labels excluded,248,309,557
+LUSC_initial_pathologic_dx_year,miRNA-seq,initial_pathologic_dx_year,median_split >= 2009 -> 1,Missing labels excluded,249,267,516
+OV_tumor_residual_disease,miRNA-seq,residual_disease_largest_nodule,No Macroscopic disease -> 0; 1-10 mm -> 1; 11-20 mm -> 1; >20 mm -> 1,Unmapped categories excluded,119,383,502
+PAAD_anatomic_neoplasm_subdivision,miRNA-seq,anatomic_neoplasm_subdivision,Head of Pancreas -> 0; Body of Pancreas -> 1; Other (please specify) -> 1; Tail of Pancreas -> 1,Unmapped categories excluded,141,42,183
+PCPG_primary_pathology_histological_type,miRNA-seq,histologic_diagnosis,Pheochromocytoma -> 0; Paraganglioma -> 1; Paraganglioma; Extra-adrenal Pheochromocytoma -> 1,Unmapped categories excluded,154,33,187
+PRAD_icd_o_3_histology,miRNA-seq,icd_o_3_histology,8140/3 -> 0; 8550/3 -> 1,"Retain only 8140/3, 8550/3; Missing labels excluded",291,245,536
+READ_tumor_status,miRNA-seq,tumor_status,WITH TUMOR -> 0; TUMOR FREE -> 1,Missing labels excluded,82,62,144
+SARC_primary_pathology_histological_type,miRNA-seq,histologic_diagnosis,Leiomyosarcoma (LMS) -> 0; Dedifferentiated liposarcoma -> 1; Desmoid Tumor -> 1; Giant cell 'MFH' / Undifferentiated pleomorphic sarcoma with giant cells -> 1; Malignant Peripheral Nerve Sheath Tumors (MPNST) -> 1; Myxofibrosarcoma -> 1; Pleomorphic 'MFH' / Undifferentiated pleomorphic sarcoma -> 1; Sarcoma; synovial; poorly differentiated -> 1; Synovial Sarcoma - Biphasic -> 1; Synovial Sarcoma - Monophasic -> 1; Undifferentiated Pleomorphic Sarcoma (UPS) -> 1,Unmapped categories excluded,106,157,263
+SKCM_initial_pathologic_dx_year,miRNA-seq,initial_pathologic_dx_year,median_split >= 2008 -> 1,Missing labels excluded,226,223,449
+STAD_prospective_collection,miRNA-seq,prospective_collection,YES -> 0; NO -> 1,Missing labels excluded,260,230,490
+TGCT_histologic_diagnosis,miRNA-seq,histologic_diagnosis,Seminoma; NOS -> 0; any other diagnosis -> 1,Missing labels excluded,66,73,139
+THCA_initial_pathologic_dx_year,miRNA-seq,initial_pathologic_dx_year,median_split > 2010 -> 1,Missing labels excluded,304,269,573
+THYM_primary_pathology_history_myasthenia_gravis,miRNA-seq,history_myasthenia_gravis,NO -> 0; YES -> 1,Missing labels excluded,88,35,123
+UCS_primary_pathology_total_pelv_lnr,miRNA-seq,lymph_nodes_pelvic_examined_count,median_split >= 7 -> 1,Missing values set to 0 before splitting,27,30,57
+RNA_COAD_tumor_status,RNA-seq,tumor_status,WITH TUMOR -> 0; TUMOR FREE -> 1,Missing labels excluded,232,235,467
+RNA_LAML,RNA-seq,None (one group),No binary recoding,All samples retained,,,151
+RNA_READ,RNA-seq,None (one group),No binary recoding,All samples retained,,,177
+RNA_SKCM_breslow_thickness_at_diagnosis,RNA-seq,breslow_thickness_at_diagnosis,median_split > 3 -> 1,Missing labels excluded,186,175,361
+RNA_PAAD,RNA-seq,None (one group),No binary recoding,All samples retained,,,183

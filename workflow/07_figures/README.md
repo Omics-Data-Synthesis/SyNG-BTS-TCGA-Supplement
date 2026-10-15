@@ -1,4 +1,42 @@
-# Manuscript figures
+# Manuscript figures and tables
+
+## Manuscript table CSVs
+
+Export all seven manuscript tables from existing results:
+
+```bash
+uv run --locked workflow/07_figures/run.py --tables
+```
+
+This table-only command writes to the top-level `tables/` directory beside
+`figures/`. It does not render plots, load fidelity results, refit curves or rerun
+upstream stages. The standalone command is
+`uv run --locked workflow/07_figures/table_manuscript.py`; it accepts
+`--output-dir PATH` for exports elsewhere. Running stage 07 without selection
+flags builds all registered figures and then all manuscript tables. Use
+`--figures NAME --tables` to build named figures and the tables together.
+
+| CSV under `tables/` | Manuscript table | Inputs |
+|---|---|---|
+| `benchmark_label_recoding.csv` | S1: label recoding and group counts | `results/group_selection.csv`, `config/datasets.tsv` |
+| `marker_filtering.csv` | S2: marker filtering and sample counts | `results/marker_filtering.csv` |
+| `training_runtime_mirna.csv` | S3: miRNA training epochs and runtimes | `results/training_time.csv` |
+| `learning_curve_agreement_summary.csv` | S4: aggregate agreement summaries | `results/learning_curve_fits.json` |
+| `learning_curve_selected_configurations.csv` | S5: configurations selected for Figure 6 | Same archive, `config/datasets.tsv`, `config/generate_off_aug.tsv` |
+| `learning_curve_selected_agreement.csv` | S6: comparisons at those configurations | Same archive |
+| `learning_curve_agreement.csv` | S7: complete comparison grid | Same archive |
+
+`table_manuscript.py` selects columns and reshapes the existing results. Runtime
+export uses successful miRNA records without offline augmentation and pivots the
+three loss ratios into paired epoch/time columns. Runtime logging is unchanged.
+Numeric values retain the precision available in the source results; round only for typesetting
+(three decimals for filtering cutoffs and agreement gaps in the current manuscript).
+One-group datasets have blank binary-group counts in the recoding CSV.
+
+Both exporters check candidate-size and draw counts against `config/synthesize.tsv`
+before writing outputs. Table export also requires exactly one empirical and one
+generated series for every classifier and metric in each archived configuration;
+incomplete or duplicate series are errors.
 
 ## Learning-curve agreement
 
@@ -29,7 +67,7 @@ panels use that same configuration. Selection uses unrounded values; exact ties
 resolve lexicographically by the full configuration key. Incomplete classifier
 coverage is an error. This is retrospective selection within the evaluated grid,
 not a prospective configuration-selection validation. The median across all
-configurations is retained as Supplementary Figure S5. Selected comparison columns
+configurations is retained as Supplementary Figure S1. Selected comparison columns
 are BRCA miRNA TC/cVAE-1:5, HNSC miRNA raw/cVAE-1:50, HNSC miRNA TC/cVAE-1:50
 (all without an AE head), and COAD RNA TC/cVAE-1:50 with two AE-head iterations.
 Each column reports mean source ARI from its exact configuration in
@@ -55,7 +93,7 @@ rows omit the head.
 | Output under `figures/` | Content |
 |---|---|
 | `learning_curve_agreement.pdf`, `.png` | Figure 6: task-by-classifier signed and absolute AUC gaps at one selected configuration per task |
-| `learning_curve_agreement_median.pdf`, `.png` | Supplementary Figure S5: medians across all configurations |
+| `learning_curve_agreement_median.pdf`, `.png` | Supplementary Figure S1: medians across all configurations |
 | `learning_curve_comparison_auc.pdf`, `.png` | Selected AUC curves over shared support, with draw SDs, fitted-mean intervals, B/D and source ARI |
 | `learning_curve_comparison_f1_score.pdf`, `.png` | Matching shared-support macro-F1 curves |
 | `learning_curve_comparison_accuracy.pdf`, `.png` | Matching shared-support accuracy curves |
@@ -128,8 +166,8 @@ uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-r
 
 Stage 07 uses Python only. The selected fidelity figures need stage 05 results;
 they do not need the stage 06 learning-curve archive. Running stage 07 without
-`--figures` builds every registered figure, including learning curves, and requires
-all of their inputs.
+`--figures` or `--tables` builds every registered figure, including learning curves,
+and all manuscript tables, and requires all of their inputs.
 
 Run the source-ARI figure independently from the repository root:
 

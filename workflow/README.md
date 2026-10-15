@@ -15,10 +15,10 @@ group labels have been dropped, so the sample set has to be fixed first.
 | 01 | Download TCGA | `Rscript workflow/01_download_tcga/run.R` | cohort list from `config/` | `data/raw/` (expression + clinical) |
 | 02 | Define groups | `uv run workflow/02_define_groups/run.py` | `data/raw/`, `config/datasets.tsv`, `config/group_maps.tsv` | `data/processed/grouped/`, `results/group_selection.csv` |
 | 03 | Preprocess | `uv run workflow/03_preprocess/run.py` | `data/raw/`, `data/processed/grouped/`, `config/datasets.tsv`, `config/preprocess.tsv` | `data/processed/filtered/`, `results/marker_filtering.csv` |
-| 04 | Generate | `uv run workflow/04_generate/run.py` | `data/processed/`, generation config | `data/generated/` |
+| 04 | Generate | `uv run workflow/04_generate/run.py` | `data/processed/`, generation config | `data/generated/`, `results/training_time.csv` |
 | 05 | Fidelity | `uv run workflow/05_fidelity/run.py` | `data/processed/`, `data/generated/`, `config/mirna_coordinates.csv` | `results/fidelity.csv`, `results/umap.csv` |
 | 06 | SyntheSize | `uv run workflow/06_synthesize/run.py [--workers N]` | `data/processed/`, `data/generated/` | `results/learning_curve_fits.json`, `results/curves.csv`, `results/curve_fits.csv`, `data/processed/curves/` |
-| 07 | Figures and tables | `uv run workflow/07_figures/run.py` | `results/` | `figures/`, `results/tables/` |
+| 07 | Figures and tables | `uv run workflow/07_figures/run.py` | `results/`, `config/` | `figures/`, `tables/`, `results/tables/` |
 | 08 | Website | `uv run workflow/08_website/run.py` | `results/learning_curve_fits.json` and companion CSVs, `config/` | `website/plots/`, `website/manifest.json` |
 
 **Stage 05 also writes the UMAP coordinates.** Signed source ARI, MAD, CCC of means, and UMAP run in Python. DANA `cccpcc` and voom+limma `ccc_log10_pvalue` / `ccc_log2_FC` are computed by `dana_dea.R` (needs `Rscript` on PATH) for binary grouped jobs. `grouping=none` RNA-seq skips DANA/DEA and SyntheSize (stage 06). A job whose `generated.csv` is missing is skipped; rerun after stage 04. RNA-seq `cccpcc` is NA until a gene-coordinate table is added — miRNA uses `config/mirna_coordinates.csv`.
@@ -38,6 +38,15 @@ The source-ARI, miRNA, and RNA-seq fidelity renderers consume stage 05 tables an
 `config/fidelity_figures.tsv`. Build these independently of stage 06 with
 `uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-rnaseq`.
 The [figure guide](07_figures/README.md) documents inputs and individual commands.
+
+Export all seven manuscript table CSVs without rendering figures:
+`uv run --locked workflow/07_figures/run.py --tables`. The standalone exporter is
+`workflow/07_figures/table_manuscript.py`, which writes descriptively named CSVs
+to `tables/` beside `figures/`. It reads completed grouping, filtering, training
+and learning-curve results. `agreement_data.py` supplies the same gap calculations
+and configuration selection used by the figure script. No upstream stages are
+rerun. With no selection flags, stage 07 builds all figures and tables; `--figures` 
+alone keeps the existing figure-only behavior.
 
 The `learning-curve-agreement` figure family builds the manuscript overview,
 selected source overlays, configuration heatmaps and comparison table from stage

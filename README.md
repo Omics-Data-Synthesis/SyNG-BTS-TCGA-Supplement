@@ -21,7 +21,7 @@ uv sync                       # Python
 Rscript -e 'renv::restore()'  # R
 ```
 
-Stage 07 renders all figures in Python using the environment in `pyproject.toml`
+Stage 07 renders figures and exports manuscript tables in Python using the environment in `pyproject.toml`
 and `uv.lock`. R remains required by earlier analysis stages, including DANA and
 limma in stage 05; those stages need `Rscript` on `PATH` and the environment in
 `renv.lock`. Add a package with `uv add` or `renv::install` followed by
@@ -130,8 +130,12 @@ One row per published output. Example structure:
 | SyntheSize learning curves | `07_figures/figure_learning_curves.py` | `results/learning_curve_fits.json` |
 | Learning-curve agreement overview and selected comparisons | `07_figures/figure_learning_curve_agreement.py` | `results/learning_curve_fits.json`, `results/fidelity.csv`, `config/learning_curve_figures.tsv` |
 | Learning-curve comparison table and configuration heatmaps | `07_figures/figure_learning_curve_agreement.py` | Archived observed means → `results/tables/learning_curve_agreement.csv` and descriptive figure files |
-| Table B1, marker filtering | `03_preprocess/run.py` | `results/marker_filtering.csv` |
-| Table C1, training time | `04_generate/run.py` | `results/training_time.csv` |
+| Table S1, benchmark-label recoding | `07_figures/table_manuscript.py` | `results/group_selection.csv`, `config/datasets.tsv` |
+| Table S2, marker filtering | `07_figures/table_manuscript.py` | `results/marker_filtering.csv` |
+| Table S3, training time | `07_figures/table_manuscript.py` | `results/training_time.csv` |
+| Table S4, aggregate agreement | `07_figures/table_manuscript.py` | `results/learning_curve_fits.json` |
+| Table S5, selected configurations | `07_figures/table_manuscript.py` | Same archive, `config/datasets.tsv`, `config/generate_off_aug.tsv` |
+| Tables S6–S7, selected and complete comparisons | `07_figures/table_manuscript.py` | Same archive |
 | Interactive learning curves | `08_website/run.py` | `results/learning_curve_fits.json` → `website/plots/**/data.json` |
 
 Build only the source-ARI, miRNA, and RNA-seq fidelity figures with:
@@ -160,6 +164,18 @@ labels and the selected fidelity table use exact configuration matches to the
 stage 05 results. See the [figure guide](workflow/07_figures/README.md) for outputs
 and interpretation of source-only support.
 
+
+Export all seven manuscript table CSVs without rendering figures:
+
+```bash
+uv run --locked workflow/07_figures/run.py --tables
+```
+
+These publication files live under `tables/`, beside `figures/`, and are the direct
+sources for manuscript tables. They retain available numerical precision; captions
+and typesetting remain in the manuscript. The table and figure scripts share their
+agreement calculations and configuration-selection rule. See the
+[stage 07 guide](workflow/07_figures/README.md) for filenames and inputs.
 
 ## Interactive website
 

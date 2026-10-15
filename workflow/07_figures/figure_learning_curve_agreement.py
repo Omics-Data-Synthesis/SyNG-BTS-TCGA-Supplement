@@ -18,40 +18,11 @@ from pathlib import Path
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "workflow"))
-import itertools
 
 SELECTIONS = ROOT / "config" / "learning_curve_figures.tsv"
-KEYS = ("dataset_id", "modality", "norm", "model", "off_aug", "method", "metric_name")
-METHODS = ("LOGIS", "SVM", "KNN", "RF", "XGB")
-
-
-def select_agreement_configurations(rows):
-    """Choose one complete configuration per task by mean AUC D, never |B|.
-
-    Exact ties resolve lexicographically by the full configuration key.
-    Selection uses unrounded values and is reused for both gaps and all metrics.
-    """
-    grouped = {}
-    for row in rows:
-        if row["metric_name"] == "auc":
-            grouped.setdefault(tuple(row[k] for k in KEYS[:5]), []).append(row)
-    tasks = {}
-    for key, group in sorted(grouped.items()):
-        if len(group) != len(METHODS) or {r["method"] for r in group} != set(METHODS):
-            raise ValueError(f"Expected all five classifiers exactly once: {key}")
-        if not all(math.isfinite(r[m]) for r in group for m in ("signed_gap", "absolute_gap")):
-            raise ValueError(f"Nonfinite agreement values: {key}")
-        tasks.setdefault(key[0], []).append({
-            **dict(zip(KEYS[:5], key)),
-            "mean_absolute_auc_gap": statistics.mean(r["absolute_gap"] for r in group),
-            "max_absolute_auc_gap": max(r["absolute_gap"] for r in group),
-        })
-    if not tasks:
-        raise ValueError("No AUC configurations available for selection")
-    return [{**min(tasks[ds], key=lambda r: r["mean_absolute_auc_gap"]),
-             "n_configurations_evaluated": len(tasks[ds]), "n_classifiers": len(METHODS)}
-            for ds in sorted(tasks, key=lambda ds: (ds.startswith("RNA_"), ds))]
-
+from agreement_data import (
+    KEYS, METHODS, compare, comparison_rows, select_agreement_configurations, validate_archive,
+)
 
 def empirical_sample_sizes(fits):
     """Read full empirical cohort sizes from the archived observed size grids."""
@@ -145,39 +116,6 @@ def case_support(real, generated, full_support=False):
     return max(r[0]["n"], g[0]["n"]), min(r[-1]["n"], g[-1]["n"])
 
 
-def interpolate(observed, n):
-    assert observed[0]["n"] <= n <= observed[-1]["n"]
-    for left, right in itertools.pairwise(observed):
-        if left["n"] <= n <= right["n"]:
-            t = (n - left["n"]) / (right["n"] - left["n"])
-            return left["observed_mean"] * (1 - t) + right["observed_mean"] * t
-    raise ValueError(n)
-
-
-def compare(real, generated):
-    r, g = real["observed"], generated["observed"]
-    lo, hi = max(r[0]["n"], g[0]["n"]), min(r[-1]["n"], g[-1]["n"])
-    knots = sorted({lo, hi} | {o["n"] for o in r + g if lo <= o["n"] <= hi})
-    delta = [interpolate(g, n) - interpolate(r, n) for n in knots]
-    signed = absolute = 0
-    for x, y, d, e in zip(knots, knots[1:], delta, delta[1:]):
-        width = y - x
-        signed += width * (d + e) / 2
-        # Exact integral of the absolute piecewise-linear difference, including crossings.
-        absolute += width * (
-            (d * d + e * e) / (2 * (abs(d) + abs(e)))
-            if d * e < 0
-            else (abs(d) + abs(e)) / 2
-        )
-    return {
-        "n_low": lo,
-        "n_high": hi,
-        "signed_gap": signed / (hi - lo),
-        "absolute_gap": absolute / (hi - lo),
-        "endpoint_gap": delta[-1],
-    }
-
-
 def main(output_dir=None, results_dir=None):
     output_dir = Path(output_dir) if output_dir is not None else ROOT / "figures"
     results_dir = Path(results_dir) if results_dir is not None else ROOT / "results"
@@ -194,40 +132,9 @@ def main(output_dir=None, results_dir=None):
         }
 
     fits = archive["fits"]
-    if not fits:
-        raise ValueError("No archived learning curves available")
-    if not all(
-        len(f["observed"]) == int(config["n_sizes"])
-        and all(o["n_draws"] == int(config["n_draws"]) for o in f["observed"])
-        for f in fits
-    ):
-        raise ValueError("Incomplete candidate-size or draw coverage")
-    for selection in selections:
-        for method in METHODS:
-            for metric in ("auc", "f1_score", "accuracy"):
-                for source in ("real", "generated"):
-                    matches = [
-                        f
-                        for f in fits
-                        if all(
-                            f[k] == selection[k]
-                            for k in KEYS[:5]
-                        )
-                        and f["method"] == method
-                        and f["metric_name"] == metric
-                        and f["source"] == source
-                    ]
-                    if len(matches) != 1:
-                        raise ValueError(
-                            f"Missing or duplicate selected curve: {selection}, {method}, {metric}, {source}"
-                        )
+    validate_archive(fits, config["n_sizes"], config["n_draws"], selections)
     fidelity = selected_fidelity(selections)
-    index = {tuple(f[k] for k in KEYS) + (f["source"],): f for f in fits}
-    rows = []
-    for f in fits:
-        if f["source"] == "generated":
-            key = tuple(f[k] for k in KEYS)
-            rows.append({**dict(zip(KEYS, key)), **compare(index[key + ("real",)], f)})
+    rows = comparison_rows(fits)
     output_dir.mkdir(parents=True, exist_ok=True)
     (results_dir / "tables").mkdir(parents=True, exist_ok=True)
     with (results_dir / "tables" / "learning_curve_agreement.csv").open(
