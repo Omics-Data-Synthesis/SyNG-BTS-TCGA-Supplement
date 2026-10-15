@@ -2,7 +2,7 @@
 
 ## Manuscript table CSVs
 
-Export all seven manuscript tables from existing results:
+Export six manuscript tables and the runtime source-data CSV from existing results:
 
 ```bash
 uv run --locked workflow/07_figures/run.py --tables
@@ -16,15 +16,15 @@ upstream stages. The standalone command is
 flags builds all registered figures and then all manuscript tables. Use
 `--figures NAME --tables` to build named figures and the tables together.
 
-| CSV under `tables/` | Manuscript table | Inputs |
+| CSV under `tables/` | Manuscript item | Inputs |
 |---|---|---|
 | `benchmark_label_recoding.csv` | S1: label recoding and group counts | `results/group_selection.csv`, `config/datasets.tsv` |
 | `marker_filtering.csv` | S2: marker filtering and sample counts | `results/marker_filtering.csv` |
-| `training_runtime_mirna.csv` | S3: miRNA training epochs and runtimes | `results/training_time.csv` |
-| `learning_curve_agreement_summary.csv` | S4: aggregate agreement summaries | `results/learning_curve_fits.json` |
-| `learning_curve_selected_configurations.csv` | S5: configurations selected for Figure 6 | Same archive, `config/datasets.tsv`, `config/generate_off_aug.tsv` |
-| `learning_curve_selected_agreement.csv` | S6: comparisons at those configurations | Same archive |
-| `learning_curve_agreement.csv` | S7: complete comparison grid | Same archive |
+| `training_runtime_mirna.csv` | Figure S1 source data: miRNA training epochs and runtimes | `results/training_time.csv` |
+| `learning_curve_agreement_summary.csv` | S3: aggregate agreement summaries | `results/learning_curve_fits.json` |
+| `learning_curve_selected_configurations.csv` | S4: configurations selected for Figure 6 | Same archive, `config/datasets.tsv`, `config/generate_off_aug.tsv` |
+| `learning_curve_selected_agreement.csv` | S5: comparisons at those configurations | Same archive |
+| `learning_curve_agreement.csv` | S6: complete comparison grid | Same archive |
 
 `table_manuscript.py` selects columns and reshapes the existing results. Runtime
 export uses successful miRNA records without offline augmentation and pivots the
@@ -37,6 +37,22 @@ Both exporters check candidate-size and draw counts against `config/synthesize.t
 before writing outputs. Table export also requires exactly one empirical and one
 generated series for every classifier and metric in each archived configuration;
 incomplete or duplicate series are errors.
+
+## Training epochs and runtime
+
+Render a two-panel heatmap of the complete miRNA runtime table:
+
+```bash
+uv run --locked workflow/07_figures/run.py --figures training-runtime
+```
+
+`figure_training_runtime.py` reads original `results/training_time.csv` records and writes
+`figures/training_runtime_mirna.pdf` and `.png`. Its standalone entry point accepts
+`--source PATH` and `--output-dir PATH`. It does not regenerate the CSV or rerun
+training. It shares successful-miRNA/no-offline-augmentation selection and reshaping
+with `table_manuscript.training_runtime`. Duplicate successful records are rejected.
+The exported `tables/training_runtime_mirna.csv` remains available as unnumbered
+source data for exact numerical lookup; it is not a prerequisite for rendering.
 
 ## Learning-curve agreement
 
@@ -67,7 +83,7 @@ panels use that same configuration. Selection uses unrounded values; exact ties
 resolve lexicographically by the full configuration key. Incomplete classifier
 coverage is an error. This is retrospective selection within the evaluated grid,
 not a prospective configuration-selection validation. The median across all
-configurations is retained as Supplementary Figure S1. Selected comparison columns
+configurations is retained as Supplementary Figure S2. Selected comparison columns
 are BRCA miRNA TC/cVAE-1:5, HNSC miRNA raw/cVAE-1:50, HNSC miRNA TC/cVAE-1:50
 (all without an AE head), and COAD RNA TC/cVAE-1:50 with two AE-head iterations.
 Each column reports mean source ARI from its exact configuration in
@@ -93,7 +109,7 @@ rows omit the head.
 | Output under `figures/` | Content |
 |---|---|
 | `learning_curve_agreement.pdf`, `.png` | Figure 6: task-by-classifier signed and absolute AUC gaps at one selected configuration per task |
-| `learning_curve_agreement_median.pdf`, `.png` | Supplementary Figure S1: medians across all configurations |
+| `learning_curve_agreement_median.pdf`, `.png` | Supplementary Figure S2: medians across all configurations |
 | `learning_curve_comparison_auc.pdf`, `.png` | Selected AUC curves over shared support, with draw SDs, fitted-mean intervals, B/D and source ARI |
 | `learning_curve_comparison_f1_score.pdf`, `.png` | Matching shared-support macro-F1 curves |
 | `learning_curve_comparison_accuracy.pdf`, `.png` | Matching shared-support accuracy curves |

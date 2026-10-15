@@ -25,6 +25,7 @@ FIGURES = {
     "source-ari": "figure_source_ari",
     "fidelity-mirna": "figure_fidelity_mirna",
     "fidelity-rnaseq": "figure_fidelity_rnaseq",
+    "training-runtime": "figure_training_runtime",
 }
 
 

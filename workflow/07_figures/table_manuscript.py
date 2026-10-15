@@ -74,9 +74,17 @@ def training_runtime(records):
                and r["modality"] == "mirna" and r["off_aug"] == "none"]
     groups = {}
     for record in records:
-        groups.setdefault((record["dataset_id"], record["norm"]), {})[record["model"]] = record
+        key = (record["dataset_id"], record["norm"])
+        group = groups.setdefault(key, {})
+        if record["norm"] not in ("raw", "TC", "DESeq"):
+            raise ValueError(f"Unexpected runtime normalization: {key}")
+        if record["model"] in group:
+            raise ValueError(f"Duplicate successful runtime record: {key}, {record['model']}")
+        group[record["model"]] = record
     rows = []
     for dataset, norm in sorted(groups, key=lambda key: (key[0], ("raw", "TC", "DESeq").index(key[1]))):
+        if set(groups[dataset, norm]) != {"CVAE1-5", "CVAE1-10", "CVAE1-50"}:
+            raise ValueError(f"Incomplete or unexpected runtime models: {dataset}, {norm}")
         row = {"Dataset (cancer_variable)": dataset, "Norm": norm}
         for model in ("CVAE1-5", "CVAE1-10", "CVAE1-50"):
             record = groups[dataset, norm][model]

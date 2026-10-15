@@ -39,7 +39,7 @@ The source-ARI, miRNA, and RNA-seq fidelity renderers consume stage 05 tables an
 `uv run workflow/07_figures/run.py --figures source-ari fidelity-mirna fidelity-rnaseq`.
 The [figure guide](07_figures/README.md) documents inputs and individual commands.
 
-Export all seven manuscript table CSVs without rendering figures:
+Export the six numbered manuscript tables and runtime source-data CSV without rendering figures:
 `uv run --locked workflow/07_figures/run.py --tables`. The standalone exporter is
 `workflow/07_figures/table_manuscript.py`, which writes descriptively named CSVs
 to `tables/` beside `figures/`. It reads completed grouping, filtering, training
