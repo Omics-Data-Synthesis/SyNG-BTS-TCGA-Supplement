@@ -3,8 +3,8 @@
 Stage 06 already ran ``evaluate_sample_sizes`` and fitted the IPLF
 ``(1 - a) - b * n^c``. This module only renders ``results/learning_curve_fits.json``:
 observed means (with draw SD) and the stored fitted curve plus 95% CI.
-Layout matches ``helper_source/augmentation_learning_curves.py``: one
-figure per generate() combo, rows = classifiers, columns = real | generated.
+Each generation configuration has one figure. Each row shows one classifier,
+with real data on the left and generated data on the right.
 
 Metric, classifier order, and y-limits come from ``config/synthesize.tsv``.
 """

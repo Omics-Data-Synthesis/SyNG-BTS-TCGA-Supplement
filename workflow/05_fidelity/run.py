@@ -1,9 +1,9 @@
 # Stage 05: fidelity metrics and UMAP coordinates for every generated table.
 #
 # Python computes signed source ARI, CCC of feature means, MAD, MedAE, and UMAP.
-# DANA cccpcc and voom+limma CCC of -log10(p) and log2 FC run in dana_dea.R
-# (same maths as helper_source/Xinyi_version/evaluate_synthetic.R) for binary
-# grouped jobs only. grouping=none RNA skips DANA/DEA (no two-class contrast)
+# For binary groups, dana_dea.R computes DANA cccpcc and uses voom+limma
+# to calculate CCC for -log10(p) and log2 fold changes. RNA with grouping=none
+# skips DANA/DEA because there is no two-class contrast,
 # but still computes source ARI, MAD, MedAE, and UMAP. miRNA coordinates are
 # config/mirna_coordinates.csv; dots in `name` are turned into hyphens
 # to match TCGA feature names. RNA-seq has no gene-coordinate table yet, so

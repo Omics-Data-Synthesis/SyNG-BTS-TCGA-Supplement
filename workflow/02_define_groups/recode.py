@@ -1,8 +1,8 @@
 """Recode one BCR clinical column into a binary group label.
 
-Rules come from helper_source/ClinicalFiltering.ipynb (binary section):
-GDC missing codes become NA; remaining values are median-split, mapped, or
-majority-coded to 0/1. Unmapped levels stay NA and are dropped in stage 03.
+GDC missing codes become NA. The configured rule assigns binary labels by
+median split, explicit mapping, or majority coding. Unmapped levels stay NA
+and are dropped in stage 03.
 """
 
 from __future__ import annotations
