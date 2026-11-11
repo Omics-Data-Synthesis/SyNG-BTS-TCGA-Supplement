@@ -86,9 +86,10 @@
   }
 
   function render(payload) {
-    if (!payload.provenance || payload.provenance.syng_bts_version !== "3.6.0" ||
+    // Stage 08 checks producer provenance. The viewer reads format version 1.
+    if (!payload.provenance || payload.provenance.format_version !== 1 ||
         payload.provenance.fitting_api !== "syng_bts.fit_sample_sizes") {
-      fail("These learning-curve results need to be rebuilt.");
+      fail("This viewer cannot read the format of these learning-curve results.");
       return;
     }
     var clfSeries = payload.series && payload.series[classifier];
